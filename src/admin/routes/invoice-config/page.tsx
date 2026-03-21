@@ -9,6 +9,7 @@ import {
     Controller,
 } from "react-hook-form"
 import { useCallback, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
 
 type InvoiceConfig = {
     id: string;
@@ -27,13 +28,14 @@ const schema = z.object({
     company_ruc: z.string().optional(),
     company_address: z.string().optional(),
     company_phone: z.string().optional(),
-    company_email: z.string().email().optional(),
-    company_logo: z.string().url().optional(),
+    company_email: z.string().email().optional().or(z.literal("")),
+    company_logo: z.string().optional(),
     notes: z.string().optional(),
     admin_notification_email: z.string().email().optional().or(z.literal("")),
 })
 
 const InvoiceConfigPage = () => {
+    const navigate = useNavigate()
     const { data, isLoading, refetch } = useQuery<{
         invoice_config: InvoiceConfig
     }>({
@@ -49,6 +51,9 @@ const InvoiceConfigPage = () => {
         onSuccess: () => {
             refetch()
             toast.success("Configuración actualizada exitosamente")
+        },
+        onError: () => {
+            toast.error("Error al guardar la configuración")
         },
     })
 
@@ -77,11 +82,15 @@ const InvoiceConfigPage = () => {
             return
         }
 
-        const { files } = await sdk.admin.upload.create({
-            files: [file],
-        })
+        try {
+            const { files } = await sdk.admin.upload.create({
+                files: [file],
+            })
 
-        form.setValue("company_logo", files[0].url)
+            form.setValue("company_logo", files[0].url)
+        } catch (error) {
+            toast.error("Error al subir el logo. Verifica que el archivo sea una imagen válida.")
+        }
     }
 
     useEffect(() => {
@@ -93,6 +102,9 @@ const InvoiceConfigPage = () => {
         <Container className="divide-y p-0">
             <div className="flex items-center justify-between px-6 py-4">
                 <Heading level="h1">Configuración de Comprobante</Heading>
+                <Button variant="secondary" onClick={() => navigate("/invoice-templates")}>
+                    Gestionar Plantillas
+                </Button>
             </div>
             <FormProvider {...form}>
                 <form
