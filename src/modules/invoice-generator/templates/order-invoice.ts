@@ -1,7 +1,7 @@
 import type { TDocumentDefinitions, CustomTableLayout } from "pdfmake/interfaces"
 import type { InferTypeOf } from "@medusajs/framework/types"
 import type { InvoiceConfig } from "../models/invoice-config"
-import { BaseDocumentStrategy } from "./strategy"
+import { BaseDocumentStrategy, type BuildResult } from "./strategy"
 
 // ── Structural domain types ───────────────────────────────────────────────────
 // These are precise interfaces for the fields this template actually reads.
@@ -95,10 +95,10 @@ export class OrderInvoiceStrategy extends BaseDocumentStrategy<OrderInvoiceInput
         input: OrderInvoiceInput,
         config: InferTypeOf<typeof InvoiceConfig>,
         htmlTemplate?: string | null
-    ): Promise<TDocumentDefinitions> {
+    ): Promise<BuildResult> {
         const { order, items } = input
 
-        // ── If HTML template provided, render via Handlebars + html-to-pdfmake ──
+        // ── If HTML template provided, render via Handlebars → HTML string ──
         if (htmlTemplate) {
             return this.buildFromHtml(htmlTemplate, input, config)
         }
@@ -365,7 +365,7 @@ export class OrderInvoiceStrategy extends BaseDocumentStrategy<OrderInvoiceInput
             defaultStyle: { font: "Helvetica" },
         }
 
-        return docDef
+        return { type: "pdfmake" as const, definition: docDef }
     }
 
     // ── Private helpers ─────────────────────────────────────────────────────────
@@ -392,7 +392,7 @@ export class OrderInvoiceStrategy extends BaseDocumentStrategy<OrderInvoiceInput
         htmlTemplate: string,
         input: OrderInvoiceInput,
         config: InferTypeOf<typeof InvoiceConfig>
-    ): Promise<TDocumentDefinitions> {
+    ): Promise<BuildResult> {
         const { order, items } = input
         const currency = order.currency_code ?? "USD"
         const invoiceId = `INV-${input.invoiceDisplayId.toString().padStart(6, "0")}`

@@ -6,7 +6,7 @@ import type {
 } from "pdfmake/interfaces"
 import type { InferTypeOf } from "@medusajs/framework/types"
 import type { InvoiceConfig } from "../models/invoice-config"
-import { BaseDocumentStrategy } from "./strategy"
+import { BaseDocumentStrategy, type BuildResult } from "./strategy"
 
 // ── Input types ───────────────────────────────────────────────────────────────
 
@@ -161,9 +161,9 @@ export class QuoteProformaStrategy extends BaseDocumentStrategy<QuoteProformaInp
         input: QuoteProformaInput,
         _config: InferTypeOf<typeof InvoiceConfig>,
         htmlTemplate?: string | null
-    ): Promise<TDocumentDefinitions> {
+    ): Promise<BuildResult> {
 
-        // ── If HTML template provided, render via Handlebars + html-to-pdfmake ──
+        // ── If HTML template provided, render via Handlebars → HTML string ──
         if (htmlTemplate) {
             return this.buildFromHtml(htmlTemplate, input, _config)
         }
@@ -465,7 +465,7 @@ export class QuoteProformaStrategy extends BaseDocumentStrategy<QuoteProformaInp
             defaultStyle: { font: "Helvetica" },
         }
 
-        return docDef
+        return { type: "pdfmake" as const, definition: docDef }
     }
 
     // ── Private helpers ─────────────────────────────────────────────────────────
@@ -520,7 +520,7 @@ export class QuoteProformaStrategy extends BaseDocumentStrategy<QuoteProformaInp
         htmlTemplate: string,
         input: QuoteProformaInput,
         config: InferTypeOf<typeof InvoiceConfig>
-    ): Promise<TDocumentDefinitions> {
+    ): Promise<BuildResult> {
         const fmt = (n: number) => `$${n.toFixed(2)}`
         const taxesProvided = typeof input.totals.taxes === "number" && Number.isFinite(input.totals.taxes)
         const rawTaxes = taxesProvided

@@ -3,21 +3,28 @@ import type { InferTypeOf } from "@medusajs/framework/types"
 import type { InvoiceConfig } from "../models/invoice-config"
 import { TemplateNotFoundError } from "../errors"
 
+// ── Build result union ───────────────────────────────────────────────────────
+
+/** Strategies return either a pdfmake doc (fallback) or rendered HTML (for puppeteer) */
+export type BuildResult =
+    | { type: "pdfmake"; definition: TDocumentDefinitions }
+    | { type: "html"; html: string }
+
 // ── Core contract ────────────────────────────────────────────────────────────
 
 /**
  * Each document strategy receives its own strongly-typed input and config,
- * and must return a fully-formed pdfmake `TDocumentDefinitions` object.
+ * and must return a `BuildResult` — either a pdfmake definition or rendered HTML.
  *
- * When `htmlTemplate` is provided, the strategy should use it to render HTML
- * via Handlebars + html-to-pdfmake instead of building pdfmake objects directly.
+ * When `htmlTemplate` is provided, the strategy renders HTML via Handlebars
+ * and returns `{ type: "html" }`. Otherwise it builds pdfmake objects directly.
  */
 export interface DocumentStrategy<TInput> {
     buildDocumentDefinition(
         input: TInput,
         config: InferTypeOf<typeof InvoiceConfig>,
         htmlTemplate?: string | null
-    ): Promise<TDocumentDefinitions>
+    ): Promise<BuildResult>
 }
 
 // ── Shared utility methods ────────────────────────────────────────────────────
@@ -78,36 +85,26 @@ export abstract class BaseDocumentStrategy<TInput>
     }
 
     /**
-     * Renders an HTML+Handlebars template string into a pdfmake
-     * `TDocumentDefinitions` using handlebars compilation + html-to-pdfmake.
+     * Renders an HTML+Handlebars template string into a final HTML string.
+     * The caller (service) will use puppeteer to convert this to PDF.
      */
     protected async renderHtmlTemplate(
         htmlTemplate: string,
         data: Record<string, unknown>
-    ): Promise<TDocumentDefinitions> {
+    ): Promise<BuildResult> {
         const Handlebars = (await import("handlebars")).default
-        const htmlToPdfmake = (await import("html-to-pdfmake")).default
-        const { JSDOM } = await import("jsdom")
 
         const compiled = Handlebars.compile(htmlTemplate)
         const html = compiled(data)
 
-        const { window } = new JSDOM("")
-        const content = htmlToPdfmake(html, { window: window as unknown as Window })
-
-        return {
-            pageSize: "A4",
-            pageMargins: [40, 60, 40, 60],
-            content,
-            defaultStyle: { font: "Helvetica", fontSize: 10 },
-        }
+        return { type: "html", html }
     }
 
     abstract buildDocumentDefinition(
         input: TInput,
         config: InferTypeOf<typeof InvoiceConfig>,
         htmlTemplate?: string | null
-    ): Promise<TDocumentDefinitions>
+    ): Promise<BuildResult>
 }
 
 // ── Strategy Registry (Open/Closed Principle) ────────────────────────────────

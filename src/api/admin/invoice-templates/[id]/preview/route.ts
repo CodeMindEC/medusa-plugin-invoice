@@ -16,52 +16,41 @@ export async function POST(
     ? buildOrderInvoiceSample()
     : buildQuoteProformaSample()
 
-  // Temporarily override the strategy to use this template's HTML
-  const query = req.scope.resolve("query")
-  const { data: [config] } = await query.graph({
-    entity: "invoice_config",
-    fields: ["*"],
-  })
-
   const Handlebars = (await import("handlebars")).default
-  const htmlToPdfmake = (await import("html-to-pdfmake")).default
-  const { JSDOM } = await import("jsdom")
-
   const compiled = Handlebars.compile(template.html_content)
   const html = compiled(sampleParams)
 
-  const { window } = new JSDOM("")
-  const content = htmlToPdfmake(html, { window: window as unknown as Window })
+  // Render HTML → PDF via puppeteer-core + system chromium
+  const puppeteer = await import("puppeteer-core")
+  const executablePath =
+    process.env.PUPPETEER_CHROMIUM_PATH || "/usr/bin/chromium"
 
-  const PdfPrinter = (await import("pdfmake")).default
-  const printer = new PdfPrinter({
-    Helvetica: {
-      normal: "Helvetica",
-      bold: "Helvetica-Bold",
-      italics: "Helvetica-Oblique",
-      bolditalics: "Helvetica-BoldOblique",
-    },
+  const browser = await puppeteer.default.launch({
+    executablePath,
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu",
+    ],
+    headless: true,
   })
 
-  const docDefinition = {
-    pageSize: "A4" as const,
-    pageMargins: [40, 60, 40, 60] as [number, number, number, number],
-    content,
-    defaultStyle: { font: "Helvetica", fontSize: 10 },
-  }
+  try {
+    const page = await browser.newPage()
+    await page.setContent(html, { waitUntil: "networkidle0" })
+    const pdfBuffer = await page.pdf({
+      format: "A4",
+      printBackground: true,
+      margin: { top: "10mm", right: "10mm", bottom: "10mm", left: "10mm" },
+    })
 
-  const pdfDoc = printer.createPdfKitDocument(docDefinition)
-  const chunks: Buffer[] = []
-
-  pdfDoc.on("data", (chunk: Buffer) => chunks.push(chunk))
-  pdfDoc.on("end", () => {
-    const buffer = Buffer.concat(chunks)
     res.setHeader("Content-Type", "application/pdf")
     res.setHeader("Content-Disposition", `inline; filename="preview-${template.slug}.pdf"`)
-    res.send(buffer)
-  })
-
-  pdfDoc.end()
+    res.send(Buffer.from(pdfBuffer))
+  } finally {
+    await browser.close()
+  }
 }
 
 function buildOrderInvoiceSample(): Record<string, unknown> {

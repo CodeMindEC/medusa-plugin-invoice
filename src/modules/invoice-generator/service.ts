@@ -6,7 +6,7 @@ import { InvoiceConfig } from "./models/invoice-config"
 import { Invoice } from "./models/invoice"
 import { InvoiceTemplate } from "./models/invoice-template"
 import { PdfGenerationError } from "./errors"
-import { TemplateFactory } from "./templates/strategy"
+import { TemplateFactory, type BuildResult } from "./templates/strategy"
 
 // ── Register all built-in strategies ─────────────────────────────────────────
 import { OrderInvoiceStrategy } from "./templates/order-invoice"
@@ -17,7 +17,7 @@ import type { QuoteProformaInput } from "./templates/quote-proforma"
 TemplateFactory.register<OrderInvoiceInput>("order_invoice", OrderInvoiceStrategy)
 TemplateFactory.register<QuoteProformaInput>("quote_proforma", QuoteProformaStrategy)
 
-// ── PDF printer ───────────────────────────────────────────────────────────────
+// ── PDF printer (pdfmake fallback) ────────────────────────────────────────────
 
 const fonts = {
   Helvetica: {
@@ -46,39 +46,52 @@ class InvoiceGeneratorService extends MedusaService({
   async generatePdf(
     params: GeneratePdfParams & { invoice_id?: string }
   ): Promise<Buffer> {
-    const docDefinition = await this.resolveDocDefinition(params)
-    return this.renderToBuffer(params.template, docDefinition)
+    const result = await this.resolveResult(params)
+
+    if (result.type === "html") {
+      return this.renderHtmlToPdf(result.html)
+    }
+
+    return this.renderToBuffer(params.template, result.definition)
   }
 
   // ── Private helpers ─────────────────────────────────────────────────────────
 
-  private async resolveDocDefinition(
+  private async resolveResult(
     params: GeneratePdfParams & { invoice_id?: string }
-  ): Promise<TDocumentDefinitions> {
+  ): Promise<BuildResult> {
     if (!params.invoice_id) {
       return this.buildWithStrategy(params)
     }
 
     const invoice = await this.retrieveInvoice(params.invoice_id)
 
-    const cached = invoice.pdfContent as TDocumentDefinitions | Record<string, never>
-    if (Object.keys(cached).length > 0) {
-      return cached as TDocumentDefinitions
+    const cached = invoice.pdfContent as Record<string, unknown> | Record<string, never>
+    if (cached && Object.keys(cached).length > 0) {
+      // New format with type discriminator
+      if (cached.type === "html") {
+        return { type: "html", html: cached.html as string }
+      }
+      if (cached.type === "pdfmake") {
+        return { type: "pdfmake", definition: cached.definition as TDocumentDefinitions }
+      }
+      // Legacy format: raw pdfmake definition without wrapper
+      return { type: "pdfmake", definition: cached as unknown as TDocumentDefinitions }
     }
 
-    const docDefinition = await this.buildWithStrategy(params)
+    const result = await this.buildWithStrategy(params)
 
     await this.updateInvoices({
       id: invoice.id,
-      pdfContent: JSON.parse(JSON.stringify(docDefinition)) as Record<string, unknown>,
+      pdfContent: JSON.parse(JSON.stringify(result)) as Record<string, unknown>,
     })
 
-    return docDefinition
+    return result
   }
 
   private async buildWithStrategy(
     params: GeneratePdfParams
-  ): Promise<TDocumentDefinitions> {
+  ): Promise<BuildResult> {
     const configs = await this.listInvoiceConfigs()
     const config = configs[0] ?? null
 
@@ -96,6 +109,38 @@ class InvoiceGeneratorService extends MedusaService({
     )
   }
 
+  /** Renders raw HTML to PDF via puppeteer-core + system chromium */
+  private async renderHtmlToPdf(html: string): Promise<Buffer> {
+    const puppeteer = await import("puppeteer-core")
+    const executablePath =
+      process.env.PUPPETEER_CHROMIUM_PATH || "/usr/bin/chromium"
+
+    const browser = await puppeteer.default.launch({
+      executablePath,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+      ],
+      headless: true,
+    })
+
+    try {
+      const page = await browser.newPage()
+      await page.setContent(html, { waitUntil: "networkidle0" })
+      const pdfBuffer = await page.pdf({
+        format: "A4",
+        printBackground: true,
+        margin: { top: "10mm", right: "10mm", bottom: "10mm", left: "10mm" },
+      })
+      return Buffer.from(pdfBuffer)
+    } finally {
+      await browser.close()
+    }
+  }
+
+  /** Renders a pdfmake TDocumentDefinitions to a PDF buffer (fallback path) */
   private renderToBuffer(
     templateId: string,
     docDefinition: TDocumentDefinitions
