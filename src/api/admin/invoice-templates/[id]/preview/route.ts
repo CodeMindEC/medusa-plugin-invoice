@@ -23,7 +23,7 @@ export async function POST(
     fields: ["*"],
   })
 
-  const Handlebars = await import("handlebars")
+  const Handlebars = (await import("handlebars")).default
   const htmlToPdfmake = (await import("html-to-pdfmake")).default
   const { JSDOM } = await import("jsdom")
 

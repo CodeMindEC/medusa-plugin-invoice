@@ -1,6 +1,6 @@
 import { Container, Heading, Button, Input, Label, Select, toast } from "@medusajs/ui"
 import { useMutation } from "@tanstack/react-query"
-import { sdk } from "../../../lib/sdk"
+import { sdk } from "../../../../lib/sdk"
 import { useNavigate } from "react-router-dom"
 import { useState } from "react"
 
@@ -18,7 +18,7 @@ const NewTemplatePage = () => {
       }),
     onSuccess: (data) => {
       toast.success("Plantilla creada")
-      navigate(`/invoice-templates/${data.invoice_template.id}`)
+      navigate(`/invoice-config/invoice-templates/${data.invoice_template.id}`)
     },
     onError: () => {
       toast.error("Error al crear la plantilla")
@@ -72,7 +72,7 @@ const NewTemplatePage = () => {
         </div>
 
         <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-          <Button variant="secondary" onClick={() => navigate("/invoice-templates")}>
+          <Button variant="secondary" onClick={() => navigate("/invoice-config/invoice-templates")}>
             Cancelar
           </Button>
           <Button onClick={handleCreate} isLoading={createMutation.isPending}>

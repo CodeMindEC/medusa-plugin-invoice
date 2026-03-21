@@ -1,6 +1,6 @@
 import { Container, Heading, Button, Input, Label, toast } from "@medusajs/ui"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { sdk } from "../../../lib/sdk"
+import { sdk } from "../../../../lib/sdk"
 import { useParams, useNavigate } from "react-router-dom"
 import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import CodeMirror from "@uiw/react-codemirror"
@@ -206,7 +206,7 @@ const TemplateEditorPage = () => {
       {/* ── Top bar ─────────────────────────────────────────────────────── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <Button variant="secondary" size="small" onClick={() => navigate("/invoice-templates")}>
+          <Button variant="secondary" size="small" onClick={() => navigate("/invoice-config/invoice-templates")}>
             ← Volver
           </Button>
           <div>

@@ -85,7 +85,7 @@ export abstract class BaseDocumentStrategy<TInput>
         htmlTemplate: string,
         data: Record<string, unknown>
     ): Promise<TDocumentDefinitions> {
-        const Handlebars = await import("handlebars")
+        const Handlebars = (await import("handlebars")).default
         const htmlToPdfmake = (await import("html-to-pdfmake")).default
         const { JSDOM } = await import("jsdom")
 

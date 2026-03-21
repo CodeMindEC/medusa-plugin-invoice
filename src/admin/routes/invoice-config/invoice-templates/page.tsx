@@ -2,7 +2,7 @@ import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { Container, Heading, Button, Table, Badge, toast } from "@medusajs/ui"
 import { DocumentText } from "@medusajs/icons"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { sdk } from "../../lib/sdk"
+import { sdk } from "../../../lib/sdk"
 import { useNavigate } from "react-router-dom"
 
 type InvoiceTemplate = {
@@ -51,7 +51,7 @@ const InvoiceTemplatesPage = () => {
           <Button variant="secondary" onClick={() => navigate("/invoice-config")}>
             Configuración
           </Button>
-          <Button onClick={() => navigate("/invoice-templates/new")}>
+          <Button onClick={() => navigate("/invoice-config/invoice-templates/new")}>
             + Nueva Plantilla
           </Button>
         </div>
@@ -79,7 +79,7 @@ const InvoiceTemplatesPage = () => {
             {templates.map((tpl) => (
               <Table.Row
                 key={tpl.id}
-                onClick={() => navigate(`/invoice-templates/${tpl.id}`)}
+                onClick={() => navigate(`/invoice-config/invoice-templates/${tpl.id}`)}
                 style={{ cursor: "pointer" }}
               >
                 <Table.Cell>{tpl.name}</Table.Cell>
