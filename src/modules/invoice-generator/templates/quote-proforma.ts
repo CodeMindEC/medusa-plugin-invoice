@@ -34,7 +34,7 @@ export type QuoteCustomerInfo = {
     eventDate: string
     eventTime: string
     province?: string
-    city?: string 
+    city?: string
     address?: string
     addressDetails?: string
 }
@@ -558,8 +558,10 @@ export class QuoteProformaStrategy extends BaseDocumentStrategy<QuoteProformaInp
 
         const includes = input.includes ?? []
 
+        const companyCtx = await this.buildCompanyContext(config)
+
         const data: Record<string, unknown> = {
-            company_name: config?.company_name ?? "Empresa",
+            ...companyCtx,
             company_website: "",
             quote_number: input.quoteNumber,
             date_str: input.dateStr,

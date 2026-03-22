@@ -33,14 +33,16 @@ type VariableCategory = {
   variables: { name: string; isBlock?: boolean }[]
 }
 
+const COMPANY_VARIABLES: { name: string; isBlock?: boolean }[] = [
+  { name: "company_name" }, { name: "company_ruc" }, { name: "company_address" },
+  { name: "company_phone" }, { name: "company_email" }, { name: "company_logo_base64" },
+]
+
 const ORDER_INVOICE_CATEGORIES: VariableCategory[] = [
   {
     label: "Empresa",
     icon: "🏢",
-    variables: [
-      { name: "company_name" }, { name: "company_ruc" }, { name: "company_address" },
-      { name: "company_phone" }, { name: "company_email" }, { name: "company_logo_base64" },
-    ],
+    variables: COMPANY_VARIABLES,
   },
   {
     label: "Documento",
@@ -88,9 +90,7 @@ const QUOTE_PROFORMA_CATEGORIES: VariableCategory[] = [
   {
     label: "Empresa",
     icon: "🏢",
-    variables: [
-      { name: "company_name" }, { name: "company_website" },
-    ],
+    variables: [...COMPANY_VARIABLES, { name: "company_website" }],
   },
   {
     label: "Documento",
@@ -178,6 +178,11 @@ const SAMPLE_DATA: Record<string, Record<string, unknown>> = {
   },
   quote_proforma: {
     company_name: "Mi Empresa",
+    company_ruc: "1234567890001",
+    company_address: "Av. Principal 123, Quito",
+    company_phone: "+593 99 123 4567",
+    company_email: "info@miempresa.com",
+    company_logo_base64: PLACEHOLDER_LOGO_BASE64,
     company_website: "www.miempresa.com",
     quote_number: "QP-2025-0001",
     date_str: "19/06/2025",

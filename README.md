@@ -9,12 +9,13 @@ Plugin de **facturación y cotización PDF** para Medusa v2 — genera facturas 
 
 ## Features
 
-- **Generación de PDFs** — facturas de pedido y proformas de cotización vía pdfmake + Handlebars.
-- **Plantillas HTML editables** — CRUD completo de plantillas con preview en tiempo real desde el admin.
-- **Configuración de empresa** — logo, RUC, dirección, teléfono, notas de pie de factura.
+- **Multi-empresa** — registra múltiples empresas (InvoiceConfig) y asigna una por defecto. Cada plantilla puede vincularse a una empresa específica.
+- **Generación de PDFs** — facturas de pedido y proformas de cotización vía pdfmake + Handlebars/Puppeteer.
+- **Variables de empresa unificadas** — `company_name`, `company_ruc`, `company_address`, `company_phone`, `company_email` y `company_logo_base64` están disponibles en **todos** los tipos de plantilla gracias a `buildCompanyContext()` en la clase base.
+- **Plantillas HTML editables** — CRUD completo de plantillas con preview en tiempo real, paleta de variables categorizada y selector de empresa.
 - **Strategy Pattern** — cada tipo de documento (factura, proforma) tiene su propia estrategia extensible.
 - **Templates embebidos** — plantillas por defecto incluidas en el código; restaurables con un clic.
-- **Admin UI** — widget de descarga en pedidos, editor de plantillas con CodeMirror, página de configuración.
+- **Admin UI** — dashboard "Comprobantes y Cotizaciones" con gestión de empresas, editor de plantillas con CodeMirror, widget de descarga en pedidos.
 
 ---
 
@@ -80,26 +81,37 @@ Todos los valores se pueden editar después desde el admin.
 ```
 medusa-plugin-invoice/
 ├── src/
-│   ├── admin/                          # UI del admin (widgets + rutas)
-│   │   ├── widgets/order-invoice.tsx   # Botón "Descargar comprobante" en pedidos
-│   │   └── routes/                     # Páginas de config y plantillas
-│   ├── api/                            # Rutas REST del plugin
-│   │   └── admin/
-│   │       ├── invoice-config/         # GET/POST configuración de empresa
-│   │       └── invoice-templates/      # CRUD de plantillas + preview + restore
+│   ├── admin/                                  # UI del admin (widgets + rutas)
+│   │   ├── widgets/order-invoice.tsx           # Botón "Descargar comprobante" en pedidos
+│   │   └── routes/invoice-config/
+│   │       ├── page.tsx                        # Dashboard: Comprobantes y Cotizaciones
+│   │       ├── companies/
+│   │       │   ├── page.tsx                    # Lista de empresas
+│   │       │   ├── new/page.tsx                # Crear empresa
+│   │       │   └── [id]/page.tsx               # Editar empresa
+│   │       └── invoice-templates/
+│   │           ├── page.tsx                    # Lista de plantillas
+│   │           └── [id]/page.tsx               # Editor de plantilla (CodeMirror + variables)
+│   ├── api/admin/
+│   │   ├── invoice-config/                     # CRUD multi-empresa
+│   │   │   ├── route.ts                        # GET (listar) / POST (crear)
+│   │   │   └── [id]/
+│   │   │       ├── route.ts                    # GET / POST / DELETE por ID
+│   │   │       └── set-default/route.ts        # POST marcar como default
+│   │   └── invoice-templates/                  # CRUD de plantillas + preview + restore
 │   └── modules/
 │       └── invoice-generator/
-│           ├── models/                 # Invoice, InvoiceConfig, InvoiceTemplate
+│           ├── models/                         # Invoice, InvoiceConfig, InvoiceTemplate
 │           ├── templates/
-│           │   ├── strategy.ts         # BaseDocumentStrategy + TemplateFactory
-│           │   ├── order-invoice.ts    # Estrategia de factura de pedido
-│           │   ├── quote-proforma.ts   # Estrategia de proforma de cotización
-│           │   └── defaults/index.ts   # HTML embebido de plantillas por defecto
-│           ├── loaders/                # Seed de config y plantillas iniciales
-│           ├── migrations/             # Migraciones de base de datos
-│           ├── service.ts              # InvoiceGeneratorService
-│           └── index.ts                # INVOICE_MODULE export
-└── index.d.ts                          # Declaraciones de tipos
+│           │   ├── strategy.ts                 # BaseDocumentStrategy + buildCompanyContext()
+│           │   ├── order-invoice.ts            # Estrategia de factura de pedido
+│           │   ├── quote-proforma.ts           # Estrategia de proforma de cotización
+│           │   └── defaults/index.ts           # HTML embebido de plantillas por defecto
+│           ├── loaders/                        # Seed de config y plantillas iniciales
+│           ├── migrations/                     # Migraciones de base de datos
+│           ├── service.ts                      # InvoiceGeneratorService
+│           └── index.ts                        # INVOICE_MODULE export
+└── index.d.ts                                  # Declaraciones de tipos
 ```
 
 ### Separación de responsabilidades
@@ -120,12 +132,16 @@ medusa-plugin-invoice/
 
 ## API Routes
 
-### Invoice Config
+### Invoice Config (Multi-empresa)
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
-| `GET`  | `/admin/invoice-config` | Obtener configuración actual |
-| `POST` | `/admin/invoice-config` | Actualizar configuración |
+| `GET`  | `/admin/invoice-config` | Listar todas las empresas |
+| `POST` | `/admin/invoice-config` | Crear nueva empresa |
+| `GET`  | `/admin/invoice-config/:id` | Obtener empresa por ID |
+| `POST` | `/admin/invoice-config/:id` | Actualizar empresa |
+| `DELETE` | `/admin/invoice-config/:id` | Eliminar empresa |
+| `POST` | `/admin/invoice-config/:id/set-default` | Marcar empresa como predeterminada |
 
 ### Invoice Templates
 
@@ -189,13 +205,63 @@ import { TemplateFactory, BaseDocumentStrategy } from "@codemind.ec/medusa-plugi
 
 class MyCustomStrategy extends BaseDocumentStrategy<MyInput> {
   async buildDocumentDefinition(input, config, htmlTemplate?) {
-    if (htmlTemplate) return this.renderHtmlTemplate(htmlTemplate, input)
+    // buildCompanyContext() inyecta automáticamente las 6 variables de empresa
+    const companyCtx = await this.buildCompanyContext(config)
+
+    if (htmlTemplate) {
+      return this.renderHtmlTemplate(htmlTemplate, { ...companyCtx, ...myData })
+    }
     // ... construir doc pdfmake programáticamente
   }
 }
 
 TemplateFactory.register("my_custom_doc", MyCustomStrategy)
 ```
+
+### Variables de empresa disponibles en todas las plantillas
+
+`buildCompanyContext(config)` retorna:
+
+| Variable | Descripción |
+|----------|-------------|
+| `company_name` | Nombre de la empresa |
+| `company_ruc` | RUC / NIT / identificador fiscal |
+| `company_address` | Dirección de la empresa |
+| `company_phone` | Teléfono |
+| `company_email` | Email |
+| `company_logo_base64` | Logo en base64 (data URI) |
+
+### Resolución de empresa en plantillas
+
+Cuando se genera un PDF, el servicio resuelve la empresa con esta prioridad:
+
+1. `template.company_id` — si la plantilla tiene una empresa asignada.
+2. `is_default = true` — la empresa marcada como predeterminada.
+3. Primera empresa — fallback al primer registro.
+
+---
+
+## Changelog
+
+### 1.2.0
+
+- **Variables de empresa unificadas** — `buildCompanyContext()` en `BaseDocumentStrategy` garantiza que las 6 variables de empresa (`company_name`, `company_ruc`, `company_address`, `company_phone`, `company_email`, `company_logo_base64`) estén disponibles en **todos** los tipos de plantilla (factura y proforma).
+- Paleta de variables categorizada en el editor ahora muestra las mismas variables de empresa para ambos tipos de documento.
+- Datos de preview actualizados para proforma con campos de empresa completos.
+
+### 1.1.0
+
+- **Soporte multi-empresa** — múltiples configuraciones de empresa con `is_default`.
+- **Asociación plantilla-empresa** — campo `company_id` en plantillas para vincular a una empresa específica.
+- **API CRUD completa** — nuevos endpoints `GET/POST/DELETE /admin/invoice-config/:id` y `POST /admin/invoice-config/:id/set-default`.
+- **Dashboard renovado** — página principal "Comprobantes y Cotizaciones" con tarjetas de navegación.
+- **Gestión de empresas** — páginas de listado, creación y edición de empresas.
+- **Editor de plantillas mejorado** — paleta de variables categorizada, selector de empresa, preview con logo placeholder.
+- Migración automática para `is_default` y `company_id`.
+
+### 1.0.0
+
+- Release inicial: generación PDF, plantillas editables, configuración de empresa, strategy pattern.
 
 ---
 

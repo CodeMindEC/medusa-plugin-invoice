@@ -100,6 +100,28 @@ export abstract class BaseDocumentStrategy<TInput>
         return { type: "html", html }
     }
 
+    /**
+     * Builds a standardised company-context object from the given config.
+     * Strategies spread this into their Handlebars data so every template
+     * type has access to the same company variables.
+     */
+    protected async buildCompanyContext(
+        config: InferTypeOf<typeof InvoiceConfig> | null | undefined
+    ): Promise<Record<string, string>> {
+        const logoBase64 = config?.company_logo
+            ? await this.imageUrlToBase64(config.company_logo)
+            : ""
+
+        return {
+            company_name: config?.company_name ?? "",
+            company_ruc: config?.company_ruc ?? "",
+            company_address: config?.company_address ?? "",
+            company_phone: config?.company_phone ?? "",
+            company_email: config?.company_email ?? "",
+            company_logo_base64: logoBase64,
+        }
+    }
+
     abstract buildDocumentDefinition(
         input: TInput,
         config: InferTypeOf<typeof InvoiceConfig>,

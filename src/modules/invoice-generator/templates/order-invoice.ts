@@ -396,9 +396,7 @@ export class OrderInvoiceStrategy extends BaseDocumentStrategy<OrderInvoiceInput
         const { order, items } = input
         const currency = order.currency_code ?? "USD"
         const invoiceId = `INV-${input.invoiceDisplayId.toString().padStart(6, "0")}`
-        const logoBase64 = config.company_logo
-            ? await this.imageUrlToBase64(config.company_logo)
-            : ""
+        const companyCtx = await this.buildCompanyContext(config)
 
         const isHomeDelivery = order.shipping_methods?.some(
             sm => sm.shipping_option_id === (process.env.HOME_DELIVERY_OPTION_ID || "so_01KAT339XAY8G622P8PSGW7BAZ")
@@ -410,12 +408,7 @@ export class OrderInvoiceStrategy extends BaseDocumentStrategy<OrderInvoiceInput
         }
 
         const data: Record<string, unknown> = {
-            company_name: config.company_name ?? "",
-            company_ruc: config.company_ruc ?? "",
-            company_address: config.company_address ?? "",
-            company_phone: config.company_phone ?? "",
-            company_email: config.company_email ?? "",
-            company_logo_base64: logoBase64,
+            ...companyCtx,
             invoice_id: invoiceId,
             invoice_date: new Date(input.created_at).toLocaleDateString("es-ES"),
             order_display_id: String(order.display_id).padStart(6, "0"),
