@@ -7,12 +7,14 @@ export const CreateTemplateSchema = z.object({
   type: z.enum(["order_invoice", "quote_proforma"]),
   is_default: z.boolean().optional().default(false),
   variables_schema: z.record(z.unknown()).nullable().optional(),
+  company_id: z.string().nullable().optional(),
 })
 
 export const UpdateTemplateSchema = z.object({
   name: z.string().min(1).optional(),
   html_content: z.string().min(1).optional(),
   variables_schema: z.record(z.unknown()).nullable().optional(),
+  company_id: z.string().nullable().optional(),
 })
 
 export type CreateTemplate = z.infer<typeof CreateTemplateSchema>

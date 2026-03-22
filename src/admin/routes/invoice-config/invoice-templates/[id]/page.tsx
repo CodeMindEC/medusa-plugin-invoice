@@ -1,4 +1,4 @@
-import { Container, Heading, Button, Input, Label, toast } from "@medusajs/ui"
+import { Container, Heading, Button, Input, Label, Select, Badge, Text, toast } from "@medusajs/ui"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { sdk } from "../../../../lib/sdk"
 import { useParams, useNavigate } from "react-router-dom"
@@ -16,30 +16,138 @@ type InvoiceTemplate = {
   type: "order_invoice" | "quote_proforma"
   is_default: boolean
   variables_schema: Record<string, unknown> | null
+  company_id: string | null
 }
 
-const VARIABLES: Record<string, string[]> = {
-  order_invoice: [
-    "company_name", "company_ruc", "company_address", "company_phone",
-    "company_email", "company_logo_base64", "invoice_id", "invoice_date",
-    "order_display_id", "order_date", "billing_address", "shipping_address",
-    "cedula", "subtotal", "tax_total", "shipping_total", "discount_total",
-    "total", "is_home_delivery", "notes",
-    "{{#each items}}", "this.title", "this.variant_title", "this.quantity",
-    "this.unit_price", "this.total", "{{/each}}",
-  ],
-  quote_proforma: [
-    "company_name", "company_website", "quote_number", "date_str",
-    "service_name", "is_home_delivery",
-    "{{#each config_fields}}", "this.label", "this.value", "{{/each}}",
-    "{{#each breakdown}}", "this.label", "this.total_formatted", "{{/each}}",
-    "totals.subtotal_formatted", "totals.extras_formatted",
-    "totals.discount_formatted", "totals.shipping_formatted",
-    "totals.taxes_provided", "totals.taxes_formatted", "totals.total_formatted",
-    "{{#each includes_left}}", "{{#each includes_right}}",
-    "{{#each contact_rows}}", "this.label", "this.value", "{{/each}}",
-  ],
+type InvoiceConfig = {
+  id: string
+  company_name: string
+  is_default?: boolean
 }
+
+// ── Categorized variables ────────────────────────────────────────────────────
+
+type VariableCategory = {
+  label: string
+  icon: string
+  variables: { name: string; isBlock?: boolean }[]
+}
+
+const ORDER_INVOICE_CATEGORIES: VariableCategory[] = [
+  {
+    label: "Empresa",
+    icon: "🏢",
+    variables: [
+      { name: "company_name" }, { name: "company_ruc" }, { name: "company_address" },
+      { name: "company_phone" }, { name: "company_email" }, { name: "company_logo_base64" },
+    ],
+  },
+  {
+    label: "Documento",
+    icon: "📄",
+    variables: [
+      { name: "invoice_id" }, { name: "invoice_date" },
+      { name: "order_display_id" }, { name: "order_date" },
+    ],
+  },
+  {
+    label: "Cliente",
+    icon: "👤",
+    variables: [
+      { name: "billing_address" }, { name: "shipping_address" }, { name: "cedula" },
+    ],
+  },
+  {
+    label: "Productos",
+    icon: "📦",
+    variables: [
+      { name: "{{#each items}}", isBlock: true },
+      { name: "this.title" }, { name: "this.variant_title" },
+      { name: "this.quantity" }, { name: "this.unit_price" }, { name: "this.total" },
+      { name: "{{/each}}", isBlock: true },
+    ],
+  },
+  {
+    label: "Totales",
+    icon: "💰",
+    variables: [
+      { name: "subtotal" }, { name: "tax_total" }, { name: "shipping_total" },
+      { name: "discount_total" }, { name: "total" },
+    ],
+  },
+  {
+    label: "Otros",
+    icon: "📝",
+    variables: [
+      { name: "is_home_delivery" }, { name: "notes" },
+    ],
+  },
+]
+
+const QUOTE_PROFORMA_CATEGORIES: VariableCategory[] = [
+  {
+    label: "Empresa",
+    icon: "🏢",
+    variables: [
+      { name: "company_name" }, { name: "company_website" },
+    ],
+  },
+  {
+    label: "Documento",
+    icon: "📄",
+    variables: [
+      { name: "quote_number" }, { name: "date_str" }, { name: "service_name" },
+      { name: "is_home_delivery" },
+    ],
+  },
+  {
+    label: "Configuración",
+    icon: "⚙️",
+    variables: [
+      { name: "{{#each config_fields}}", isBlock: true },
+      { name: "this.label" }, { name: "this.value" },
+      { name: "{{/each}}", isBlock: true },
+    ],
+  },
+  {
+    label: "Desglose",
+    icon: "📊",
+    variables: [
+      { name: "{{#each breakdown}}", isBlock: true },
+      { name: "this.label" }, { name: "this.total_formatted" },
+      { name: "{{/each}}", isBlock: true },
+    ],
+  },
+  {
+    label: "Totales",
+    icon: "💰",
+    variables: [
+      { name: "totals.subtotal_formatted" }, { name: "totals.extras_formatted" },
+      { name: "totals.discount_formatted" }, { name: "totals.shipping_formatted" },
+      { name: "totals.taxes_provided" }, { name: "totals.taxes_formatted" },
+      { name: "totals.total_formatted" },
+    ],
+  },
+  {
+    label: "Incluye y Contacto",
+    icon: "📋",
+    variables: [
+      { name: "{{#each includes_left}}", isBlock: true },
+      { name: "{{#each includes_right}}", isBlock: true },
+      { name: "{{#each contact_rows}}", isBlock: true },
+      { name: "this.label" }, { name: "this.value" },
+      { name: "{{/each}}", isBlock: true },
+    ],
+  },
+]
+
+const CATEGORIES: Record<string, VariableCategory[]> = {
+  order_invoice: ORDER_INVOICE_CATEGORIES,
+  quote_proforma: QUOTE_PROFORMA_CATEGORIES,
+}
+
+// Placeholder SVG logo encoded as base64 for preview
+const PLACEHOLDER_LOGO_BASE64 = "data:image/svg+xml;base64," + btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="120" height="40" viewBox="0 0 120 40"><rect width="120" height="40" rx="4" fill="#e2e8f0"/><text x="60" y="24" text-anchor="middle" fill="#64748b" font-family="sans-serif" font-size="11">LOGO</text></svg>`)
 
 const SAMPLE_DATA: Record<string, Record<string, unknown>> = {
   order_invoice: {
@@ -48,7 +156,7 @@ const SAMPLE_DATA: Record<string, Record<string, unknown>> = {
     company_address: "Av. Principal 123, Quito",
     company_phone: "+593 99 123 4567",
     company_email: "info@miempresa.com",
-    company_logo_base64: "",
+    company_logo_base64: PLACEHOLDER_LOGO_BASE64,
     invoice_id: "INV-000001",
     invoice_date: "19/06/2025",
     order_display_id: "000042",
@@ -113,15 +221,24 @@ const TemplateEditorPage = () => {
     enabled: !!id,
   })
 
+  const { data: companiesData } = useQuery<{ invoice_configs: InvoiceConfig[] }>({
+    queryFn: () => sdk.client.fetch("/admin/invoice-config"),
+    queryKey: ["invoice-configs"],
+  })
+
   const template = data?.invoice_template
+  const companies = companiesData?.invoice_configs ?? []
   const [name, setName] = useState("")
   const [htmlContent, setHtmlContent] = useState("")
+  const [companyId, setCompanyId] = useState<string | null>(null)
   const [showVariables, setShowVariables] = useState(false)
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     if (template) {
       setName(template.name)
       setHtmlContent(template.html_content)
+      setCompanyId(template.company_id)
     }
   }, [template])
 
@@ -141,7 +258,7 @@ const TemplateEditorPage = () => {
   })
 
   const handleSave = () => {
-    saveMutation.mutate({ name, html_content: htmlContent })
+    saveMutation.mutate({ name, html_content: htmlContent, company_id: companyId })
   }
 
   const handlePreviewPdf = async () => {
@@ -164,7 +281,7 @@ const TemplateEditorPage = () => {
     if (!template?.is_default) return
     if (!confirm("¿Restaurar la plantilla a su contenido original?")) return
     try {
-      const res = await sdk.client.fetch<{ invoice_template: InvoiceTemplate }>(
+      await sdk.client.fetch<{ invoice_template: InvoiceTemplate }>(
         `/admin/invoice-templates/${id}/restore`,
         { method: "POST" }
       )
@@ -185,43 +302,64 @@ const TemplateEditorPage = () => {
     }
   }, [htmlContent, template])
 
-  const insertVariable = useCallback((variable: string) => {
-    const isBlock = variable.startsWith("{{#") || variable.startsWith("{{/")
+  const insertVariable = useCallback((variable: string, isBlock?: boolean) => {
     const insertion = isBlock ? variable : `{{${variable}}}`
     setHtmlContent((prev) => prev + insertion)
   }, [])
 
-  const availableVars = template ? (VARIABLES[template.type] ?? []) : []
+  const toggleSection = useCallback((label: string) => {
+    setCollapsedSections((prev) => ({ ...prev, [label]: !prev[label] }))
+  }, [])
+
+  const categories = template ? (CATEGORIES[template.type] ?? []) : []
 
   if (isLoading) {
-    return <Container><div style={{ textAlign: "center", padding: 40 }}>Cargando...</div></Container>
+    return <Container><div className="text-center py-10">Cargando...</div></Container>
   }
 
   if (!template) {
-    return <Container><div style={{ textAlign: "center", padding: 40 }}>Plantilla no encontrada</div></Container>
+    return <Container><div className="text-center py-10">Plantilla no encontrada</div></Container>
   }
 
   return (
-    <Container>
+    <Container className="p-0">
       {/* ── Top bar ─────────────────────────────────────────────────────── */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-ui-border-base">
+        <div className="flex items-center gap-3">
           <Button variant="secondary" size="small" onClick={() => navigate("/invoice-config/invoice-templates")}>
             ← Volver
           </Button>
-          <div>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              style={{ fontWeight: "bold", fontSize: 16 }}
-            />
-          </div>
-          <code style={{ fontSize: 12, color: "#6c757d" }}>{template.slug} ({template.type})</code>
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="font-semibold text-base w-64"
+          />
+          <Text className="text-ui-fg-muted text-xs">
+            {template.slug} ({template.type})
+          </Text>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className="flex items-center gap-2">
+          {/* Company selector */}
+          <Select
+            value={companyId ?? "__none__"}
+            onValueChange={(v) => setCompanyId(v === "__none__" ? null : v)}
+          >
+            <Select.Trigger className="w-48">
+              <Select.Value placeholder="Empresa" />
+            </Select.Trigger>
+            <Select.Content>
+              <Select.Item value="__none__">Sin empresa (usa default)</Select.Item>
+              {companies.map((c) => (
+                <Select.Item key={c.id} value={c.id}>
+                  {c.company_name}{c.is_default ? " ★" : ""}
+                </Select.Item>
+              ))}
+            </Select.Content>
+          </Select>
+
           {template.is_default && (
             <Button variant="secondary" size="small" onClick={handleRestoreDefault}>
-              Restaurar Default
+              Restaurar
             </Button>
           )}
           <Button variant="secondary" size="small" onClick={() => setShowVariables(!showVariables)}>
@@ -236,47 +374,49 @@ const TemplateEditorPage = () => {
         </div>
       </div>
 
-      {/* ── Variables Palette ─────────────────────────────────────────── */}
+      {/* ── Variables Palette (categorized) ────────────────────────────── */}
       {showVariables && (
-        <div style={{
-          background: "#f8f9fa",
-          border: "1px solid #e2e8f0",
-          borderRadius: 8,
-          padding: 12,
-          marginBottom: 16,
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 6,
-        }}>
-          <Label style={{ width: "100%", marginBottom: 4 }}>
-            Variables Handlebars — click para insertar:
-          </Label>
-          {availableVars.map((v, i) => (
-            <button
-              key={i}
-              onClick={() => insertVariable(v)}
-              style={{
-                background: v.startsWith("{{") ? "#e2e8f0" : "#dbeafe",
-                border: "1px solid #cbd5e0",
-                borderRadius: 4,
-                padding: "2px 8px",
-                fontSize: 11,
-                cursor: "pointer",
-                fontFamily: "monospace",
-              }}
-            >
-              {v.startsWith("{{") ? v : `{{${v}}}`}
-            </button>
-          ))}
+        <div className="border-b border-ui-border-base bg-ui-bg-subtle px-4 py-3">
+          <Label className="block mb-2 text-sm">Variables Handlebars — click para insertar</Label>
+          <div className="flex flex-col gap-2">
+            {categories.map((cat) => (
+              <div key={cat.label} className="border border-ui-border-base rounded-lg bg-ui-bg-base overflow-hidden">
+                <button
+                  type="button"
+                  className="w-full flex items-center justify-between px-3 py-2 text-left text-sm font-medium hover:bg-ui-bg-subtle-hover transition-colors"
+                  onClick={() => toggleSection(cat.label)}
+                >
+                  <span>{cat.icon} {cat.label}</span>
+                  <span className="text-ui-fg-muted text-xs">
+                    {collapsedSections[cat.label] ? "▸" : "▾"} {cat.variables.length}
+                  </span>
+                </button>
+                {!collapsedSections[cat.label] && (
+                  <div className="px-3 pb-2 flex flex-wrap gap-1.5">
+                    {cat.variables.map((v, i) => (
+                      <Badge
+                        key={`${cat.label}-${i}`}
+                        color={v.isBlock ? "orange" : "blue"}
+                        className="cursor-pointer hover:opacity-80 transition-opacity text-xs"
+                        onClick={() => insertVariable(v.name, v.isBlock)}
+                      >
+                        {v.isBlock ? v.name : `{{${v.name}}}`}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       {/* ── Editor + Preview ──────────────────────────────────────────── */}
-      <div style={{ display: "flex", gap: 16, height: "calc(100vh - 260px)" }}>
+      <div style={{ display: "flex", gap: 16, height: "calc(100vh - 260px)", padding: 16 }}>
         {/* Editor Panel */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-          <Label style={{ marginBottom: 8 }}>Editor HTML + Handlebars</Label>
-          <div style={{ flex: 1, border: "1px solid #e2e8f0", borderRadius: 8, overflow: "hidden" }}>
+          <Label className="mb-2">Editor HTML + Handlebars</Label>
+          <div className="flex-1 border border-ui-border-base rounded-lg overflow-hidden">
             <CodeMirror
               ref={editorRef}
               value={htmlContent}
@@ -291,14 +431,8 @@ const TemplateEditorPage = () => {
 
         {/* Preview Panel */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-          <Label style={{ marginBottom: 8 }}>Preview en vivo (datos de ejemplo)</Label>
-          <div style={{
-            flex: 1,
-            border: "1px solid #e2e8f0",
-            borderRadius: 8,
-            overflow: "auto",
-            background: "#fff",
-          }}>
+          <Label className="mb-2">Preview en vivo (datos de ejemplo)</Label>
+          <div className="flex-1 border border-ui-border-base rounded-lg overflow-auto bg-white">
             <iframe
               srcDoc={previewHtml}
               style={{ width: "100%", height: "100%", border: "none" }}

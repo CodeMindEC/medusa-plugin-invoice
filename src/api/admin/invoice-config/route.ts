@@ -8,13 +8,13 @@ export async function GET(
 ) {
   const query = req.scope.resolve("query")
 
-  const { data: [invoiceConfig] } = await query.graph({
+  const { data: configs } = await query.graph({
     entity: "invoice_config",
     fields: ["*"],
   })
 
   res.json({
-    invoice_config: invoiceConfig
+    invoice_configs: configs
   })
 }
 
@@ -25,12 +25,9 @@ export async function POST(
   const body = req.validatedBody ?? req.body
   const service = req.scope.resolve(INVOICE_MODULE) as InvoiceGeneratorService
 
-  const configs = await service.listInvoiceConfigs()
-  const existing = configs[0]
+  const config = await service.createInvoiceConfigs(body as Record<string, unknown>)
 
-  const updated = await service.updateInvoiceConfigs({ id: existing.id, ...(body as Record<string, unknown>) })
-
-  res.json({
-    invoice_config: updated
+  res.status(201).json({
+    invoice_config: config
   })
 }

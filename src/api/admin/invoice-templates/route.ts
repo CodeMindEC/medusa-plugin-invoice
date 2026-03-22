@@ -11,7 +11,7 @@ export async function GET(
 
   const { data: templates } = await query.graph({
     entity: "invoice_template",
-    fields: ["id", "name", "slug", "type", "is_default", "created_at", "updated_at"],
+    fields: ["id", "name", "slug", "type", "is_default", "company_id", "created_at", "updated_at"],
   })
 
   res.json({ invoice_templates: templates })

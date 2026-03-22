@@ -13,4 +13,5 @@ export const InvoiceTemplate = model.define("invoice_template", {
   type: model.enum(TemplateType),
   is_default: model.boolean().default(false),
   variables_schema: model.json().nullable(),
+  company_id: model.text().nullable(),
 })

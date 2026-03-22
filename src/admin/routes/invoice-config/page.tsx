@@ -1,266 +1,129 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { Container, Heading, Button, Input, Label, Textarea, toast } from "@medusajs/ui"
-import { useMutation, useQuery } from "@tanstack/react-query"
+import { Container, Heading, Button, Badge, Text } from "@medusajs/ui"
+import { useQuery } from "@tanstack/react-query"
 import { sdk } from "../../lib/sdk"
-import { useForm } from "react-hook-form"
-import { z } from "@medusajs/framework/zod"
-import {
-    FormProvider,
-    Controller,
-} from "react-hook-form"
-import { useCallback, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 
 type InvoiceConfig = {
     id: string;
     company_name: string;
     company_ruc?: string;
-    company_address: string;
-    company_phone: string;
     company_email: string;
-    company_logo?: string;
-    notes?: string;
-    admin_notification_email?: string;
+    is_default?: boolean;
 }
 
-const schema = z.object({
-    company_name: z.string().optional(),
-    company_ruc: z.string().optional(),
-    company_address: z.string().optional(),
-    company_phone: z.string().optional(),
-    company_email: z.string().email().optional().or(z.literal("")),
-    company_logo: z.string().optional(),
-    notes: z.string().optional(),
-    admin_notification_email: z.string().email().optional().or(z.literal("")),
-})
+type InvoiceTemplate = {
+    id: string;
+    name: string;
+    type: string;
+}
 
 const InvoiceConfigPage = () => {
     const navigate = useNavigate()
-    const { data, isLoading, refetch } = useQuery<{
-        invoice_config: InvoiceConfig
+
+    const { data: configData, isLoading: loadingConfigs } = useQuery<{
+        invoice_configs: InvoiceConfig[]
     }>({
         queryFn: () => sdk.client.fetch("/admin/invoice-config"),
-        queryKey: ["invoice-config"],
-    })
-    const { mutateAsync, isPending } = useMutation({
-        mutationFn: (payload: z.infer<typeof schema>) =>
-            sdk.client.fetch("/admin/invoice-config", {
-                method: "POST",
-                body: payload,
-            }),
-        onSuccess: () => {
-            refetch()
-            toast.success("Configuración actualizada exitosamente")
-        },
-        onError: () => {
-            toast.error("Error al guardar la configuración")
-        },
+        queryKey: ["invoice-configs"],
     })
 
-    const getFormDefaultValues = useCallback(() => {
-        return {
-            company_name: data?.invoice_config.company_name || "",
-            company_ruc: data?.invoice_config.company_ruc || "",
-            company_address: data?.invoice_config.company_address || "",
-            company_phone: data?.invoice_config.company_phone || "",
-            company_email: data?.invoice_config.company_email || "",
-            company_logo: data?.invoice_config.company_logo || "",
-            notes: data?.invoice_config.notes || "",
-            admin_notification_email: data?.invoice_config.admin_notification_email || "",
-        }
-    }, [data])
-
-    const form = useForm<z.infer<typeof schema>>({
-        defaultValues: getFormDefaultValues(),
+    const { data: templateData, isLoading: loadingTemplates } = useQuery<{
+        invoice_templates: InvoiceTemplate[]
+    }>({
+        queryFn: () => sdk.client.fetch("/admin/invoice-templates"),
+        queryKey: ["invoice-templates"],
     })
 
-    const handleSubmit = form.handleSubmit((formData) => mutateAsync(formData))
-
-    const uploadLogo = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0]
-        if (!file) {
-            return
-        }
-
-        try {
-            const { files } = await sdk.admin.upload.create({
-                files: [file],
-            })
-
-            form.setValue("company_logo", files[0].url)
-        } catch (error) {
-            toast.error("Error al subir el logo. Verifica que el archivo sea una imagen válida.")
-        }
-    }
-
-    useEffect(() => {
-        form.reset(getFormDefaultValues())
-    }, [getFormDefaultValues])
-
+    const configs = configData?.invoice_configs ?? []
+    const templates = templateData?.invoice_templates ?? []
+    const defaultCompany = configs.find((c) => c.is_default)
 
     return (
         <Container className="divide-y p-0">
-            <div className="flex items-center justify-between px-6 py-4">
-                <Heading level="h1">Configuración de Comprobante</Heading>
-                <Button variant="secondary" onClick={() => navigate("/invoice-config/invoice-templates")}>
-                    Gestionar Plantillas
-                </Button>
+            <div className="px-6 py-4">
+                <Heading level="h1">Comprobantes y Cotizaciones</Heading>
+                <Text className="text-ui-fg-subtle mt-1">
+                    Gestiona empresas emisoras y plantillas de documentos.
+                </Text>
             </div>
-            <FormProvider {...form}>
-                <form
-                    onSubmit={handleSubmit}
-                    className="flex h-full flex-col overflow-hidden p-2 gap-2"
-                >
-                    {/* Admin notification email — first and prominent */}
-                    <div className="bg-ui-bg-subtle border border-ui-border-base rounded-lg p-3 mb-2">
-                        <Controller
-                            control={form.control}
-                            name="admin_notification_email"
-                            render={({ field }) => {
-                                return (
-                                    <div className="flex flex-col space-y-2">
-                                        <div className="flex items-center gap-x-1">
-                                            <Label size="small" weight="plus">
-                                                📧 Email de Notificaciones (Admin)
-                                            </Label>
-                                        </div>
-                                        <Input {...field} onChange={field.onChange} value={field.value} placeholder="admin@mariquita.food" />
-                                        <span className="text-ui-fg-subtle text-xs">Se enviarán notificaciones de nuevos pedidos y comprobantes de pago a este email.</span>
-                                    </div>
-                                )
-                            }}
-                        />
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-6">
+                {/* Empresas Card */}
+                <div className="border border-ui-border-base rounded-lg p-5 flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                        <Heading level="h2">Empresas</Heading>
+                        <Badge color={configs.length > 0 ? "blue" : "grey"}>
+                            {configs.length}
+                        </Badge>
                     </div>
-                    <Controller
-                        control={form.control}
-                        name="company_name"
-                        render={({ field }) => {
-                            return (
-                                <div className="flex flex-col space-y-2">
-                                    <div className="flex items-center gap-x-1">
-                                        <Label size="small" weight="plus">
-                                            Nombre de la Empresa
-                                        </Label>
-                                    </div>
-                                    <Input {...field} onChange={field.onChange} value={field.value} />
-                                </div>
-                            )
-                        }}
-                    />
-                    <Controller
-                        control={form.control}
-                        name="company_ruc"
-                        render={({ field }) => {
-                            return (
-                                <div className="flex flex-col space-y-2">
-                                    <div className="flex items-center gap-x-1">
-                                        <Label size="small" weight="plus">
-                                            RUC
-                                        </Label>
-                                    </div>
-                                    <Input {...field} onChange={field.onChange} value={field.value} placeholder="1234567890001" />
-                                </div>
-                            )
-                        }}
-                    />
-                    <Controller
-                        control={form.control}
-                        name="company_address"
-                        render={({ field }) => {
-                            return (
-                                <div className="flex flex-col space-y-2">
-                                    <div className="flex items-center gap-x-1">
-                                        <Label size="small" weight="plus">
-                                            Dirección de la Empresa
-                                        </Label>
-                                    </div>
-                                    <Textarea {...field} />
-                                </div>
-                            )
-                        }}
-                    />
-                    <Controller
-                        control={form.control}
-                        name="company_phone"
-                        render={({ field }) => {
-                            return (
-                                <div className="flex flex-col space-y-2">
-                                    <div className="flex items-center gap-x-1">
-                                        <Label size="small" weight="plus">
-                                            Teléfono de la Empresa
-                                        </Label>
-                                    </div>
-                                    <Input {...field} />
-                                </div>
-                            )
-                        }}
-                    />
-                    <Controller
-                        control={form.control}
-                        name="company_email"
-                        render={({ field }) => {
-                            return (
-                                <div className="flex flex-col space-y-2">
-                                    <div className="flex items-center gap-x-1">
-                                        <Label size="small" weight="plus">
-                                            Email de la Empresa
-                                        </Label>
-                                    </div>
-                                    <Input {...field} />
-                                </div>
-                            )
-                        }}
-                    />
-                    <Controller
-                        control={form.control}
-                        name="notes"
-                        render={({ field }) => {
-                            return (
-                                <div className="flex flex-col space-y-2">
-                                    <div className="flex items-center gap-x-1">
-                                        <Label size="small" weight="plus">
-                                            Notas
-                                        </Label>
-                                    </div>
-                                    <Textarea {...field} />
-                                </div>
-                            )
-                        }}
-                    />
-                    <Controller
-                        control={form.control}
-                        name="company_logo"
-                        render={({ field }) => {
-                            return (
-                                <div className="flex flex-col space-y-2">
-                                    <div className="flex items-center gap-x-1">
-                                        <Label size="small" weight="plus">
-                                            Logo de la Empresa
-                                        </Label>
-                                    </div>
-                                    <Input type="file" onChange={uploadLogo} className="py-1" />
-                                    {field.value && (
-                                        <img
-                                            src={field.value}
-                                            alt="Logo de la Empresa"
-                                            className="mt-2 h-24 w-24"
-                                        />
-                                    )}
-                                </div>
-                            )
-                        }}
-                    />
-                    <Button type="submit" disabled={isLoading || isPending}>
-                        Guardar
+                    {loadingConfigs ? (
+                        <Text className="text-ui-fg-subtle text-sm">Cargando...</Text>
+                    ) : defaultCompany ? (
+                        <div className="bg-ui-bg-subtle rounded-md p-3">
+                            <Text className="text-sm font-medium">{defaultCompany.company_name}</Text>
+                            {defaultCompany.company_ruc && (
+                                <Text className="text-ui-fg-subtle text-xs">RUC: {defaultCompany.company_ruc}</Text>
+                            )}
+                            <Badge color="green" className="mt-1">Default</Badge>
+                        </div>
+                    ) : (
+                        <Text className="text-ui-fg-subtle text-sm">
+                            No hay empresas configuradas.
+                        </Text>
+                    )}
+                    <Button
+                        variant="secondary"
+                        className="mt-auto"
+                        onClick={() => navigate("/invoice-config/companies")}
+                    >
+                        Gestionar Empresas
                     </Button>
-                </form>
-            </FormProvider>
+                </div>
+
+                {/* Plantillas Card */}
+                <div className="border border-ui-border-base rounded-lg p-5 flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                        <Heading level="h2">Plantillas</Heading>
+                        <Badge color={templates.length > 0 ? "blue" : "grey"}>
+                            {templates.length}
+                        </Badge>
+                    </div>
+                    {loadingTemplates ? (
+                        <Text className="text-ui-fg-subtle text-sm">Cargando...</Text>
+                    ) : templates.length > 0 ? (
+                        <div className="bg-ui-bg-subtle rounded-md p-3 flex flex-col gap-1">
+                            {templates.slice(0, 3).map((t) => (
+                                <Text key={t.id} className="text-sm">
+                                    {t.name}
+                                </Text>
+                            ))}
+                            {templates.length > 3 && (
+                                <Text className="text-ui-fg-subtle text-xs">
+                                    +{templates.length - 3} más...
+                                </Text>
+                            )}
+                        </div>
+                    ) : (
+                        <Text className="text-ui-fg-subtle text-sm">
+                            No hay plantillas. Se crearán al reiniciar el servidor.
+                        </Text>
+                    )}
+                    <Button
+                        variant="secondary"
+                        className="mt-auto"
+                        onClick={() => navigate("/invoice-config/invoice-templates")}
+                    >
+                        Gestionar Plantillas
+                    </Button>
+                </div>
+            </div>
         </Container>
     )
 }
 
 export const config = defineRouteConfig({
-    label: "Comprobante de Pedido",
+    label: "Comprobantes y Cotizaciones",
 })
 
 export default InvoiceConfigPage

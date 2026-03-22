@@ -10,4 +10,5 @@ export const InvoiceConfig = model.define("invoice_config", {
   company_logo: model.text().nullable(),
   notes: model.text().nullable(),
   admin_notification_email: model.text().nullable(),
+  is_default: model.boolean().default(false),
 })

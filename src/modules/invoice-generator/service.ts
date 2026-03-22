@@ -93,18 +93,31 @@ class InvoiceGeneratorService extends MedusaService({
     params: GeneratePdfParams
   ): Promise<BuildResult> {
     const configs = await this.listInvoiceConfigs()
-    const config = configs[0] ?? null
 
+    // Resolve template (to check company_id)
     const templates = await this.listInvoiceTemplates({
       slug: params.template,
     })
     const htmlTemplate = templates[0]?.html_content ?? null
+    const templateCompanyId = (templates[0] as Record<string, unknown>)?.company_id as string | null
+
+    // Resolve company: template.company_id → is_default → first available
+    let config = null as InferTypeOf<typeof InvoiceConfig> | null
+    if (templateCompanyId) {
+      config = configs.find((c) => c.id === templateCompanyId) ?? null
+    }
+    if (!config) {
+      config = configs.find((c) => (c as Record<string, unknown>).is_default === true) ?? null
+    }
+    if (!config) {
+      config = configs[0] ?? null
+    }
 
     const strategy = TemplateFactory.resolve<typeof params["data"]>(params.template)
 
     return strategy.buildDocumentDefinition(
       params.data,
-      config as InferTypeOf<typeof InvoiceConfig>,
+      config,
       htmlTemplate
     )
   }
