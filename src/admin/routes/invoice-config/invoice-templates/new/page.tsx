@@ -1,14 +1,28 @@
 import { Container, Heading, Button, Input, Label, Select, toast } from "@medusajs/ui"
-import { useMutation } from "@tanstack/react-query"
+import { useMutation, useQuery } from "@tanstack/react-query"
 import { sdk } from "../../../../lib/sdk"
 import { useNavigate } from "react-router-dom"
 import { useState } from "react"
+
+type StrategyInfo = {
+  id: string
+  label: string
+  hasDefaultHtml: boolean
+}
 
 const NewTemplatePage = () => {
   const navigate = useNavigate()
   const [name, setName] = useState("")
   const [slug, setSlug] = useState("")
-  const [type, setType] = useState<string>("order_invoice")
+  const [type, setType] = useState<string>("")
+
+  // Fetch registered strategies for the type dropdown
+  const { data: strategiesData, isLoading: loadingStrategies } = useQuery<{ strategies: StrategyInfo[] }>({
+    queryFn: () => sdk.client.fetch("/admin/invoice-strategies"),
+    queryKey: ["invoice-strategies"],
+  })
+
+  const strategies = strategiesData?.strategies ?? []
 
   const createMutation = useMutation({
     mutationFn: (payload: Record<string, unknown>) =>
@@ -26,16 +40,29 @@ const NewTemplatePage = () => {
   })
 
   const handleCreate = () => {
-    if (!name || !slug) {
-      toast.error("Nombre y slug son requeridos")
+    if (!name || !slug || !type) {
+      toast.error("Nombre, slug y tipo son requeridos")
       return
     }
     createMutation.mutate({
       name,
       slug,
       type,
-      html_content: getDefaultHtml(type),
+      html_content: getDefaultHtml(),
     })
+  }
+
+  const getDefaultHtml = (): string => {
+    return `<!DOCTYPE html>
+<html>
+<head><style>body { font-family: Helvetica, sans-serif; }</style></head>
+<body>
+<h1>DOCUMENTO {{document_id}}</h1>
+<p>Fecha: {{date}}</p>
+<p>Empresa: {{company_name}}</p>
+<!-- Personaliza tu plantilla aquí -->
+</body>
+</html>`
   }
 
   return (
@@ -60,53 +87,37 @@ const NewTemplatePage = () => {
 
         <div>
           <Label htmlFor="type">Tipo de documento</Label>
-          <Select value={type} onValueChange={setType}>
-            <Select.Trigger>
-              <Select.Value placeholder="Seleccionar tipo" />
-            </Select.Trigger>
-            <Select.Content>
-              <Select.Item value="order_invoice">Comprobante de Pedido</Select.Item>
-              <Select.Item value="quote_proforma">Cotización Proforma</Select.Item>
-            </Select.Content>
-          </Select>
+          {loadingStrategies ? (
+            <div className="text-ui-fg-subtle text-sm py-2">Cargando estrategias...</div>
+          ) : strategies.length === 0 ? (
+            <div className="text-ui-fg-subtle text-sm py-2">
+              No hay estrategias registradas. Registra estrategias en medusa-config.ts.
+            </div>
+          ) : (
+            <Select value={type} onValueChange={setType}>
+              <Select.Trigger>
+                <Select.Value placeholder="Seleccionar tipo" />
+              </Select.Trigger>
+              <Select.Content>
+                {strategies.map((s) => (
+                  <Select.Item key={s.id} value={s.id}>{s.label}</Select.Item>
+                ))}
+              </Select.Content>
+            </Select>
+          )}
         </div>
 
         <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
           <Button variant="secondary" onClick={() => navigate("/invoice-config/invoice-templates")}>
             Cancelar
           </Button>
-          <Button onClick={handleCreate} isLoading={createMutation.isPending}>
+          <Button onClick={handleCreate} isLoading={createMutation.isPending} disabled={strategies.length === 0}>
             Crear Plantilla
           </Button>
         </div>
       </div>
     </Container>
   )
-}
-
-function getDefaultHtml(type: string): string {
-  if (type === "quote_proforma") {
-    return `<!DOCTYPE html>
-<html>
-<head><style>body { font-family: Helvetica, sans-serif; }</style></head>
-<body>
-<h1>COTIZACIÓN {{quote_number}}</h1>
-<p>Fecha: {{date_str}}</p>
-<p>Servicio: {{service_name}}</p>
-<!-- Personaliza tu plantilla aquí -->
-</body>
-</html>`
-  }
-  return `<!DOCTYPE html>
-<html>
-<head><style>body { font-family: Helvetica, sans-serif; }</style></head>
-<body>
-<h1>COMPROBANTE {{invoice_id}}</h1>
-<p>Fecha: {{invoice_date}}</p>
-<p>Empresa: {{company_name}}</p>
-<!-- Personaliza tu plantilla aquí -->
-</body>
-</html>`
 }
 
 export default NewTemplatePage

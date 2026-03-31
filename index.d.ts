@@ -1,15 +1,84 @@
 declare module "@codemind.ec/medusa-plugin-invoice" {
   export const INVOICE_MODULE: "invoiceGenerator"
 
+  // ── Models ──────────────────────────────────────────────────────────────────
+
   export enum InvoiceStatus {
     LATEST = "latest",
     STALE = "stale",
   }
 
-  export enum TemplateType {
-    ORDER_INVOICE = "order_invoice",
-    QUOTE_PROFORMA = "quote_proforma",
+  // ── Core extensibility API ──────────────────────────────────────────────────
+
+  export type BuildResult =
+    | { type: "pdfmake"; definition: any }
+    | { type: "html"; html: string }
+
+  export interface VariableCategory {
+    label: string
+    icon: string
+    variables: { name: string; isBlock?: boolean }[]
   }
+
+  export interface StrategyRegistrationMeta {
+    label: string
+    variableCategories?: VariableCategory[]
+    buildSampleData?: () => Record<string, unknown>
+    defaultHtml?: string
+  }
+
+  export interface DocumentStrategy<TInput> {
+    buildDocumentDefinition(
+      input: TInput,
+      config: any,
+      htmlTemplate?: string | null
+    ): Promise<BuildResult>
+  }
+
+  export abstract class BaseDocumentStrategy<TInput> implements DocumentStrategy<TInput> {
+    protected getLocaleForCurrency(currencyCode: string): string
+    protected formatAmount(amount: number, currency: string): string
+    protected imageUrlToBase64(url: string): Promise<string>
+    protected renderHtmlTemplate(htmlTemplate: string, data: Record<string, unknown>): Promise<BuildResult>
+    protected buildCompanyContext(config: any): Promise<Record<string, string>>
+    abstract buildDocumentDefinition(input: TInput, config: any, htmlTemplate?: string | null): Promise<BuildResult>
+  }
+
+  export class TemplateFactory {
+    static register<TInput>(
+      templateId: string,
+      strategy: new () => DocumentStrategy<TInput>,
+      meta?: StrategyRegistrationMeta
+    ): void
+    static resolve<TInput>(templateId: string): DocumentStrategy<TInput>
+    static getMeta(templateId: string): StrategyRegistrationMeta | undefined
+    static listRegistered(): string[]
+    static listRegisteredWithMeta(): Array<{ id: string; meta?: StrategyRegistrationMeta }>
+  }
+
+  // ── Module options ──────────────────────────────────────────────────────────
+
+  export interface StrategyRegistration {
+    id: string
+    strategy: new () => DocumentStrategy<any>
+    meta: StrategyRegistrationMeta
+  }
+
+  export interface InvoiceModuleOptions {
+    strategies?: StrategyRegistration[]
+    pdf?: {
+      pageSize?: string
+      margins?: [number, number, number, number]
+    }
+    puppeteer?: {
+      executablePath?: string
+      args?: string[]
+    }
+    locale?: string
+    currency?: string
+  }
+
+  // ── Built-in strategy: Order Invoice ────────────────────────────────────────
 
   export interface InvoiceOrderAddress {
     first_name?: string | null
@@ -59,63 +128,22 @@ declare module "@codemind.ec/medusa-plugin-invoice" {
     created_at: string
   }
 
-  export interface ProformaConfigField {
-    label: string
-    value: string
+  export class OrderInvoiceStrategy extends BaseDocumentStrategy<OrderInvoiceInput> {
+    buildDocumentDefinition(input: OrderInvoiceInput, config: any, htmlTemplate?: string | null): Promise<BuildResult>
   }
 
-  export interface ProformaLineItem {
-    label: string
-    total: number
-  }
+  export const ORDER_INVOICE_META: StrategyRegistrationMeta
 
-  export interface QuoteCustomerInfo {
-    name: string
-    email: string
-    phone: string
-    cedula?: string
-    eventDate: string
-    eventTime: string
-    province?: string
-    city?: string
-    address?: string
-    addressDetails?: string
-  }
+  // ── Service ─────────────────────────────────────────────────────────────────
 
-  export interface QuoteScheduleRules {
-    minAdvanceDays: number
-    maxAdvanceDays: number
-    minEventTime: string
-    maxEventTime: string
+  export type GeneratePdfParams = {
+    template: string
+    data: Record<string, unknown>
   }
-
-  export interface QuoteProformaInput {
-    serviceType: string
-    scheduleRules: QuoteScheduleRules
-    serviceName: string
-    configFields: ProformaConfigField[]
-    breakdown: ProformaLineItem[]
-    includes: string[]
-    customerInfo: QuoteCustomerInfo | null
-    totals: {
-      subtotal: number
-      extras: number
-      shipping?: number
-      discount?: number
-      taxes?: number
-      total: number
-    }
-    dateStr: string
-    quoteNumber: string
-    isHomeDelivery?: boolean
-  }
-
-  export type GeneratePdfParams =
-    | { template: "order_invoice"; data: OrderInvoiceInput }
-    | { template: "quote_proforma"; data: QuoteProformaInput }
 
   export class InvoiceGeneratorService {
     generatePdf(params: GeneratePdfParams & { invoice_id?: string }): Promise<Buffer>
+    listStrategies(): Array<{ id: string; meta?: StrategyRegistrationMeta }>
     listInvoiceConfigs(filters?: Record<string, unknown>): Promise<any[]>
     updateInvoiceConfigs(data: Record<string, unknown>): Promise<any>
     retrieveInvoiceConfig(id: string): Promise<any>

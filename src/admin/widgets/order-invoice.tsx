@@ -22,15 +22,15 @@ const OrderInvoiceWidget = ({ data: order }: DetailWidgetProps<AdminOrder>) => {
             const url = window.URL.createObjectURL(blob)
             const a = document.createElement('a')
             a.href = url
-            a.download = `comprobante-pedido-${order.id}.pdf`
+            a.download = `documento-${order.id}.pdf`
             document.body.appendChild(a)
             a.click()
             window.URL.revokeObjectURL(url)
             document.body.removeChild(a)
             setIsDownloading(false)
-            toast.success("Comprobante generado y descargado exitosamente")
+            toast.success("Documento generado y descargado exitosamente")
         } catch (error) {
-            toast.error(`Error al generar comprobante: ${error}`)
+            toast.error(`Error al generar documento: ${error}`)
             setIsDownloading(false)
         }
     }
@@ -39,9 +39,9 @@ const OrderInvoiceWidget = ({ data: order }: DetailWidgetProps<AdminOrder>) => {
         <Container className="divide-y p-0">
             <div className="flex items-center justify-between px-6 py-4">
                 <div>
-                    <Heading level="h2">Comprobante</Heading>
+                    <Heading level="h2">Documento</Heading>
                     <Text size="small" className="text-ui-fg-subtle">
-                        Generar y descargar comprobante de pedido
+                        Generar y descargar documento del pedido
                     </Text>
                 </div>
             </div>
@@ -53,7 +53,7 @@ const OrderInvoiceWidget = ({ data: order }: DetailWidgetProps<AdminOrder>) => {
                     onClick={downloadInvoice}
                     isLoading={isDownloading}
                 >
-                    Descargar Comprobante
+                    Descargar Documento
                 </Button>
             </div>
         </Container>

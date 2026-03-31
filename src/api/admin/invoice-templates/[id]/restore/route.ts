@@ -2,7 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/framework/utils"
 import { INVOICE_MODULE } from "../../../../../modules/invoice-generator"
 import InvoiceGeneratorService from "../../../../../modules/invoice-generator/service"
-import { DEFAULT_TEMPLATES } from "../../../../../modules/invoice-generator/templates/defaults"
+import { TemplateFactory } from "../../../../../modules/invoice-generator/templates/strategy"
 
 export async function POST(
   req: MedusaRequest,
@@ -20,15 +20,16 @@ export async function POST(
     )
   }
 
-  const defaultTpl = DEFAULT_TEMPLATES.find(t => t.slug === template.slug)
-  if (!defaultTpl) {
+  const meta = TemplateFactory.getMeta(template.type)
+  if (!meta?.defaultHtml) {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,
-      `No se encontró plantilla por defecto para slug: ${template.slug}`
+      `No se encontró HTML por defecto para el tipo: ${template.type}`
     )
   }
 
-  const updated = await service.updateInvoiceTemplates({ id, html_content: defaultTpl.html })
+  const updated = await service.updateInvoiceTemplates({ id, html_content: meta.defaultHtml })
 
   res.json({ invoice_template: updated })
 }
+

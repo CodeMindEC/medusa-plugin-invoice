@@ -9,7 +9,7 @@ type InvoiceTemplate = {
   id: string
   name: string
   slug: string
-  type: "order_invoice" | "quote_proforma"
+  type: string
   is_default: boolean
   company_id: string | null
   created_at: string
@@ -21,9 +21,9 @@ type InvoiceConfig = {
   company_name: string
 }
 
-const TYPE_LABELS: Record<string, string> = {
-  order_invoice: "Comprobante de Pedido",
-  quote_proforma: "Cotización Proforma",
+type StrategyInfo = {
+  id: string
+  label: string
 }
 
 const InvoiceTemplatesPage = () => {
@@ -40,6 +40,12 @@ const InvoiceTemplatesPage = () => {
     queryKey: ["invoice-configs"],
   })
 
+  // Fetch registered strategies for dynamic type labels
+  const { data: strategiesData } = useQuery<{ strategies: StrategyInfo[] }>({
+    queryFn: () => sdk.client.fetch("/admin/invoice-strategies"),
+    queryKey: ["invoice-strategies"],
+  })
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) =>
       sdk.client.fetch(`/admin/invoice-templates/${id}`, { method: "DELETE" }),
@@ -54,6 +60,9 @@ const InvoiceTemplatesPage = () => {
 
   const templates = data?.invoice_templates ?? []
   const companiesMap = new Map((companiesData?.invoice_configs ?? []).map((c) => [c.id, c.company_name]))
+
+  // Build dynamic labels from registered strategies
+  const typeLabels = new Map((strategiesData?.strategies ?? []).map((s) => [s.id, s.label]))
 
   return (
     <Container className="divide-y p-0">
@@ -100,7 +109,7 @@ const InvoiceTemplatesPage = () => {
                   <Table.Cell>
                     <code className="text-xs">{tpl.slug}</code>
                   </Table.Cell>
-                  <Table.Cell>{TYPE_LABELS[tpl.type] ?? tpl.type}</Table.Cell>
+                  <Table.Cell>{typeLabels.get(tpl.type) ?? tpl.type}</Table.Cell>
                   <Table.Cell>
                     <Text className="text-sm">
                       {tpl.company_id ? (companiesMap.get(tpl.company_id) ?? "—") : "—"}

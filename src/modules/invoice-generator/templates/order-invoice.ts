@@ -1,7 +1,8 @@
 import type { TDocumentDefinitions, CustomTableLayout } from "pdfmake/interfaces"
 import type { InferTypeOf } from "@medusajs/framework/types"
 import type { InvoiceConfig } from "../models/invoice-config"
-import { BaseDocumentStrategy, type BuildResult } from "./strategy"
+import { BaseDocumentStrategy, type BuildResult, type StrategyRegistrationMeta } from "./strategy"
+import { ORDER_INVOICE_DEFAULT_HTML } from "./defaults"
 
 // ── Structural domain types ───────────────────────────────────────────────────
 // These are precise interfaces for the fields this template actually reads.
@@ -442,4 +443,90 @@ export class OrderInvoiceStrategy extends BaseDocumentStrategy<OrderInvoiceInput
 
         return this.renderHtmlTemplate(htmlTemplate, data)
     }
+}
+
+// ── Registration metadata ─────────────────────────────────────────────────────
+
+// Placeholder SVG logo encoded as base64 for preview
+const PLACEHOLDER_LOGO_BASE64 = "data:image/svg+xml;base64," + Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="120" height="40" viewBox="0 0 120 40"><rect width="120" height="40" rx="4" fill="#e2e8f0"/><text x="60" y="24" text-anchor="middle" fill="#64748b" font-family="sans-serif" font-size="11">LOGO</text></svg>`).toString("base64")
+
+export const ORDER_INVOICE_META: StrategyRegistrationMeta = {
+    label: "Comprobante de Pedido",
+    variableCategories: [
+        {
+            label: "Empresa",
+            icon: "🏢",
+            variables: [
+                { name: "company_name" }, { name: "company_ruc" }, { name: "company_address" },
+                { name: "company_phone" }, { name: "company_email" }, { name: "company_logo_base64" },
+            ],
+        },
+        {
+            label: "Documento",
+            icon: "📄",
+            variables: [
+                { name: "invoice_id" }, { name: "invoice_date" },
+                { name: "order_display_id" }, { name: "order_date" },
+            ],
+        },
+        {
+            label: "Cliente",
+            icon: "👤",
+            variables: [
+                { name: "billing_address" }, { name: "shipping_address" }, { name: "cedula" },
+            ],
+        },
+        {
+            label: "Productos",
+            icon: "📦",
+            variables: [
+                { name: "{{#each items}}", isBlock: true },
+                { name: "this.title" }, { name: "this.variant_title" },
+                { name: "this.quantity" }, { name: "this.unit_price" }, { name: "this.total" },
+                { name: "{{/each}}", isBlock: true },
+            ],
+        },
+        {
+            label: "Totales",
+            icon: "💰",
+            variables: [
+                { name: "subtotal" }, { name: "tax_total" }, { name: "shipping_total" },
+                { name: "discount_total" }, { name: "total" },
+            ],
+        },
+        {
+            label: "Otros",
+            icon: "📝",
+            variables: [
+                { name: "is_home_delivery" }, { name: "notes" },
+            ],
+        },
+    ],
+    buildSampleData: () => ({
+        company_name: "Mi Empresa",
+        company_ruc: "1234567890001",
+        company_address: "Av. Principal 123, Quito, Ecuador",
+        company_phone: "+593 99 123 4567",
+        company_email: "info@miempresa.com",
+        company_logo_base64: PLACEHOLDER_LOGO_BASE64,
+        invoice_id: "INV-000001",
+        invoice_date: new Date().toLocaleDateString("es-ES"),
+        order_display_id: "000042",
+        order_date: new Date().toLocaleDateString("es-ES"),
+        billing_address: "Juan Pérez\nCalle Ejemplo 456\nQuito, Pichincha\nEC",
+        shipping_address: "Juan Pérez\nCalle Ejemplo 456\nQuito, Pichincha\nEC",
+        cedula: "1712345678",
+        items: [
+            { title: "Producto de ejemplo", variant_title: "Grande", quantity: "2", unit_price: "$25.00", total: "$50.00" },
+            { title: "Otro producto", variant_title: "", quantity: "1", unit_price: "$15.00", total: "$15.00" },
+        ],
+        subtotal: "$65.00",
+        tax_total: "$7.80",
+        shipping_total: "$5.00",
+        discount_total: "",
+        total: "$77.80",
+        is_home_delivery: false,
+        notes: "Gracias por su compra. Tiempo de entrega: 3-5 días hábiles.",
+    }),
+    defaultHtml: ORDER_INVOICE_DEFAULT_HTML,
 }

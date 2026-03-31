@@ -10,6 +10,30 @@ export type BuildResult =
     | { type: "pdfmake"; definition: TDocumentDefinitions }
     | { type: "html"; html: string }
 
+// ── Variable category (for admin UI template editor) ─────────────────────────
+
+export interface VariableCategory {
+    /** Human-readable label (e.g. "Empresa", "Productos") */
+    label: string
+    /** Emoji icon for the UI (e.g. "🏢", "📦") */
+    icon: string
+    /** Available template variables in this category */
+    variables: { name: string; isBlock?: boolean }[]
+}
+
+// ── Strategy registration metadata ───────────────────────────────────────────
+
+export interface StrategyRegistrationMeta {
+    /** Human-readable label for admin UI (e.g. "Comprobante de Pedido") */
+    label: string
+    /** Variable categories for the template editor sidebar */
+    variableCategories?: VariableCategory[]
+    /** Sample data builder for live preview in the template editor */
+    buildSampleData?: () => Record<string, unknown>
+    /** Default HTML content for new templates of this type */
+    defaultHtml?: string
+}
+
 // ── Core contract ────────────────────────────────────────────────────────────
 
 /**
@@ -137,22 +161,29 @@ type StrategyConstructor<TInput> = new () => DocumentStrategy<TInput>
  * A static registry that maps template identifiers to their corresponding
  * strategy implementations. Extend the system by calling `register()` —
  * no modification to the service layer required.
+ *
+ * Registration is done declaratively via module options in `medusa-config.ts`.
  */
 export class TemplateFactory {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     private static readonly registry = new Map<string, StrategyConstructor<any>>()
+    private static readonly metaRegistry = new Map<string, StrategyRegistrationMeta>()
 
     /**
-     * Register a new template strategy.
+     * Register a new template strategy with optional UI metadata.
      *
      * @example
-     *   TemplateFactory.register("order_invoice", OrderInvoiceStrategy)
+     *   TemplateFactory.register("order_invoice", OrderInvoiceStrategy, ORDER_INVOICE_META)
      */
     static register<TInput>(
         templateId: string,
-        strategy: StrategyConstructor<TInput>
+        strategy: StrategyConstructor<TInput>,
+        meta?: StrategyRegistrationMeta
     ): void {
         TemplateFactory.registry.set(templateId, strategy)
+        if (meta) {
+            TemplateFactory.metaRegistry.set(templateId, meta)
+        }
     }
 
     /**
@@ -172,8 +203,21 @@ export class TemplateFactory {
         return new StrategyCtor()
     }
 
+    /** Get UI metadata for a registered strategy */
+    static getMeta(templateId: string): StrategyRegistrationMeta | undefined {
+        return TemplateFactory.metaRegistry.get(templateId)
+    }
+
     /** Lists all registered template IDs (useful for admin UIs / debugging) */
     static listRegistered(): string[] {
         return Array.from(TemplateFactory.registry.keys())
+    }
+
+    /** Lists all registered strategies with their metadata */
+    static listRegisteredWithMeta(): Array<{ id: string; meta?: StrategyRegistrationMeta }> {
+        return Array.from(TemplateFactory.registry.keys()).map(id => ({
+            id,
+            meta: TemplateFactory.metaRegistry.get(id),
+        }))
     }
 }

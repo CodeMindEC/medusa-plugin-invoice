@@ -3,13 +3,23 @@ import {
   IMedusaInternalService,
 } from "@medusajs/framework/types"
 import { InvoiceConfig } from "../models/invoice-config"
-import { InvoiceTemplate, TemplateType } from "../models/invoice-template"
-import { DEFAULT_TEMPLATES } from "../templates/defaults"
+import { InvoiceTemplate } from "../models/invoice-template"
+import { TemplateFactory } from "../templates/strategy"
+import type { InvoiceModuleOptions } from "../../../types/module-options"
 
 export default async function createDefaultConfigLoader({
   container,
+  options,
 }: LoaderOptions) {
   try {
+    const moduleOptions = (options ?? {}) as InvoiceModuleOptions
+
+    // ── Register strategies from module options ─────────────────────────────
+    for (const reg of moduleOptions.strategies ?? []) {
+      TemplateFactory.register(reg.id, reg.strategy, reg.meta)
+    }
+
+    // ── Seed default company config ─────────────────────────────────────────
     const service: IMedusaInternalService<
       typeof InvoiceConfig
     > = container.resolve("invoiceConfigService")
@@ -26,23 +36,26 @@ export default async function createDefaultConfigLoader({
       })
     }
 
-    // ── Seed default HTML templates ───────────────────────────────────────────
+    // ── Seed default templates from registered strategies ────────────────────
     const templateService: IMedusaInternalService<
       typeof InvoiceTemplate
     > = container.resolve("invoiceTemplateService")
 
-    const [__, tplCount] = await templateService.listAndCount()
+    const registered = TemplateFactory.listRegisteredWithMeta()
+    for (const { id, meta } of registered) {
+      if (!meta?.defaultHtml) continue
 
-    if (tplCount > 0) {
-      return
-    }
+      const [existing] = await templateService.listAndCount({
+        slug: id,
+      })
 
-    for (const tpl of DEFAULT_TEMPLATES) {
+      if (existing.length > 0) continue
+
       await templateService.create({
-        name: tpl.name,
-        slug: tpl.slug,
-        html_content: tpl.html,
-        type: tpl.type as TemplateType,
+        name: meta.label,
+        slug: id,
+        html_content: meta.defaultHtml,
+        type: id,
         is_default: true,
         variables_schema: null,
       })

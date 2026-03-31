@@ -7,15 +7,11 @@ import { Invoice } from "./models/invoice"
 import { InvoiceTemplate } from "./models/invoice-template"
 import { PdfGenerationError } from "./errors"
 import { TemplateFactory, type BuildResult } from "./templates/strategy"
+import type { InvoiceModuleOptions } from "../../types/module-options"
 
-// ── Register all built-in strategies ─────────────────────────────────────────
-import { OrderInvoiceStrategy } from "./templates/order-invoice"
-import { QuoteProformaStrategy } from "./templates/quote-proforma"
-import type { OrderInvoiceInput } from "./templates/order-invoice"
-import type { QuoteProformaInput } from "./templates/quote-proforma"
-
-TemplateFactory.register<OrderInvoiceInput>("order_invoice", OrderInvoiceStrategy)
-TemplateFactory.register<QuoteProformaInput>("quote_proforma", QuoteProformaStrategy)
+// ── No auto-registration ──────────────────────────────────────────────────────
+// Strategies are registered declaratively via module options in medusa-config.ts.
+// The module loader calls TemplateFactory.register() for each entry.
 
 // ── PDF printer (pdfmake fallback) ────────────────────────────────────────────
 
@@ -30,11 +26,17 @@ const fonts = {
 
 const printer = new PdfPrinter(fonts)
 
-// ── Discriminated union for template params ───────────────────────────────────
+// ── Open params type ──────────────────────────────────────────────────────────
 
-export type GeneratePdfParams =
-  | { template: "order_invoice"; data: OrderInvoiceInput }
-  | { template: "quote_proforma"; data: QuoteProformaInput }
+/**
+ * Generic params for PDF generation.
+ * The `template` string must match a registered strategy ID.
+ * The `data` object is the input for that strategy.
+ */
+export type GeneratePdfParams = {
+  template: string
+  data: Record<string, unknown>
+}
 
 // ── Service ───────────────────────────────────────────────────────────────────
 
@@ -43,6 +45,14 @@ class InvoiceGeneratorService extends MedusaService({
   Invoice,
   InvoiceTemplate,
 }) {
+  private readonly moduleOptions: InvoiceModuleOptions
+
+  constructor(...args: any[]) {
+    super(...args)
+    // Module options are passed as the second argument by Medusa's module loader
+    this.moduleOptions = (args[1] ?? {}) as InvoiceModuleOptions
+  }
+
   async generatePdf(
     params: GeneratePdfParams & { invoice_id?: string }
   ): Promise<Buffer> {
@@ -53,6 +63,11 @@ class InvoiceGeneratorService extends MedusaService({
     }
 
     return this.renderToBuffer(params.template, result.definition)
+  }
+
+  /** Lists all registered strategies with their metadata */
+  listStrategies() {
+    return TemplateFactory.listRegisteredWithMeta()
   }
 
   // ── Private helpers ─────────────────────────────────────────────────────────
@@ -125,25 +140,32 @@ class InvoiceGeneratorService extends MedusaService({
   /** Renders raw HTML to PDF via puppeteer-core + system chromium */
   private async renderHtmlToPdf(html: string): Promise<Buffer> {
     const puppeteer = await import("puppeteer-core")
+    const puppeteerOpts = this.moduleOptions.puppeteer
     const executablePath =
-      process.env.PUPPETEER_CHROMIUM_PATH || "/usr/bin/chromium"
+      puppeteerOpts?.executablePath ??
+      process.env.PUPPETEER_CHROMIUM_PATH ??
+      "/usr/bin/chromium"
+
+    const defaultArgs = [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu",
+    ]
 
     const browser = await puppeteer.default.launch({
       executablePath,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-gpu",
-      ],
+      args: puppeteerOpts?.args ?? defaultArgs,
       headless: true,
     })
 
     try {
       const page = await browser.newPage()
       await page.setContent(html, { waitUntil: "networkidle0" })
+
+      const pdfOpts = this.moduleOptions.pdf
       const pdfBuffer = await page.pdf({
-        format: "A4",
+        format: (pdfOpts?.pageSize as any) ?? "A4",
         printBackground: true,
         margin: { top: "10mm", right: "10mm", bottom: "10mm", left: "10mm" },
       })
