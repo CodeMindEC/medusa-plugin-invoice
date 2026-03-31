@@ -1,6 +1,6 @@
 {
     "name": "@codemind.ec/medusa-plugin-invoice",
-    "version": "1.2.1",
+    "version": "1.3.0",
     "description": "Invoice & quotation PDF widget for Medusa v2 admin — download order receipts and manage company billing config.",
     "author": "Kollor <dev@codemind.ec> (https://codemind.ec)",
     "license": "MIT",
