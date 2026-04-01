@@ -143,6 +143,7 @@ export abstract class BaseDocumentStrategy<TInput>
             company_phone: config?.company_phone ?? "",
             company_email: config?.company_email ?? "",
             company_logo_base64: logoBase64,
+            company_logo_img: logoBase64 ? `<img src="${logoBase64}" alt="Logo" style="max-height: 120px; max-width: 100%; object-fit: contain;">` : "",
         }
     }
 

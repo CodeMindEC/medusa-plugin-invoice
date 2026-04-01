@@ -157,7 +157,24 @@ const TemplateEditorPage = () => {
 
   const insertVariable = useCallback((variable: string, isBlock?: boolean) => {
     const insertion = isBlock ? variable : `{{${variable}}}`
-    setHtmlContent((prev) => prev + insertion)
+    
+    if (editorRef.current?.view) {
+      const view = editorRef.current.view
+      const { state } = view
+      const selection = state.selection.main
+      
+      view.dispatch({
+        changes: {
+          from: selection.from,
+          to: selection.to,
+          insert: insertion,
+        },
+        selection: { anchor: selection.from + insertion.length },
+      })
+      view.focus()
+    } else {
+      setHtmlContent((prev) => prev + insertion)
+    }
   }, [])
 
   const toggleSection = useCallback((label: string) => {

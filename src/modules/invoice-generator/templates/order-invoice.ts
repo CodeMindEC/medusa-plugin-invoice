@@ -459,6 +459,7 @@ export const ORDER_INVOICE_META: StrategyRegistrationMeta = {
             variables: [
                 { name: "company_name" }, { name: "company_ruc" }, { name: "company_address" },
                 { name: "company_phone" }, { name: "company_email" }, { name: "company_logo_base64" },
+                { name: "company_logo_img", isBlock: true },
             ],
         },
         {
@@ -509,6 +510,7 @@ export const ORDER_INVOICE_META: StrategyRegistrationMeta = {
         company_phone: "+593 99 123 4567",
         company_email: "info@miempresa.com",
         company_logo_base64: PLACEHOLDER_LOGO_BASE64,
+        company_logo_img: `<img src="${PLACEHOLDER_LOGO_BASE64}" alt="Logo" style="max-height: 120px; max-width: 100%; object-fit: contain;">`,
         invoice_id: "INV-000001",
         invoice_date: new Date().toLocaleDateString("es-ES"),
         order_display_id: "000042",
