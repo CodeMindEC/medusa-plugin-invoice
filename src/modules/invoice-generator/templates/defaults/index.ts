@@ -88,12 +88,16 @@ export const ORDER_INVOICE_DEFAULT_HTML = `<!DOCTYPE html>
 <div class="columns">
   <div>
     <div class="section-header">CLIENTE</div>
+    <div class="address-text" style="font-weight:bold; margin-bottom:4px;">{{customer_name}}</div>
+    {{#if customer_email}}<div class="address-text">{{customer_email}}</div>{{/if}}
+    {{#if customer_phone}}<div class="address-text" style="margin-bottom:6px;">{{customer_phone}}</div>{{/if}}
     <div class="address-text">{{billing_address}}</div>
     {{#if cedula}}<div class="address-text" style="margin-top:4px;">Cédula/RUC: {{cedula}}</div>{{/if}}
   </div>
   <div>
     <div class="section-header">ENVÍO A</div>
     <div class="address-text">{{shipping_address}}</div>
+    {{#if shipping_method}}<div class="address-text" style="margin-top:6px; font-weight:bold;">Método: {{shipping_method}}</div>{{/if}}
   </div>
 </div>
 

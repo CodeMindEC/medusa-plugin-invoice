@@ -30,6 +30,8 @@ export interface InvoiceLineItem {
     quantity: number
     unit_price: number
     subtotal?: number | null
+    tax_total?: number | null
+    discount_total?: number | null
     // Optional enriched fields present when variant/product is populated
     variant_title?: string | null
     variant?: { title?: string | null; product?: { title?: string | null } | null } | null
@@ -46,6 +48,8 @@ export interface InvoiceOrder {
     subtotal?: number | null
     tax_total?: number | null
     discount_total?: number | null
+    payment_status?: string | null
+    payment_collections?: Array<{ status?: string | null }> | null
     shipping_address?: InvoiceOrderAddress | null
     billing_address?: InvoiceOrderAddress | null
     shipping_methods?: Array<{ name?: string | null; amount?: number | null; shipping_option_id?: string | null }> | null
@@ -378,12 +382,10 @@ export class OrderInvoiceStrategy extends BaseDocumentStrategy<OrderInvoiceInput
         if (!addr) return fallback
 
         const lines: string[] = [
-            `${addr.first_name ?? ''} ${addr.last_name ?? ''}`.trim(),
             addr.address_1 ?? '',
             addr.address_2 ?? '',
             [addr.city, addr.province, addr.postal_code].filter(Boolean).join(", "),
             addr.country_code?.toUpperCase() ?? '',
-            addr.phone ?? '',
         ]
 
         return lines.filter(Boolean).join("\n")
@@ -408,12 +410,30 @@ export class OrderInvoiceStrategy extends BaseDocumentStrategy<OrderInvoiceInput
             return val ? String(val) : ""
         }
 
+        const resolvePaymentStatus = (): string => {
+            if (order.payment_status) return order.payment_status;
+            if (order.payment_collections?.length) return order.payment_collections[0].status ?? "pending";
+            return "pending";
+        }
+
+        // Identify customer from best available source
+        const customerName = (order.billing_address?.first_name || order.shipping_address?.first_name)
+            ? `${order.billing_address?.first_name ?? order.shipping_address?.first_name ?? ''} ${order.billing_address?.last_name ?? order.shipping_address?.last_name ?? ''}`.trim()
+            : "Cliente"
+        const customerPhone = order.billing_address?.phone ?? order.shipping_address?.phone ?? ""
+
         const data: Record<string, unknown> = {
             ...companyCtx,
             invoice_id: invoiceId,
             invoice_date: new Date(input.created_at).toLocaleDateString("es-ES"),
             order_display_id: String(order.display_id).padStart(6, "0"),
             order_date: new Date(order.created_at).toLocaleDateString("es-ES"),
+            currency_code: currency.toUpperCase(),
+            payment_status: resolvePaymentStatus(),
+            shipping_method: order.shipping_methods?.[0]?.name ?? "Estándar",
+            customer_name: customerName,
+            customer_email: order.email ?? "",
+            customer_phone: customerPhone,
             billing_address: this.formatAddress(order.billing_address, "Sin dirección de facturación"),
             shipping_address: this.formatAddress(order.shipping_address, "Sin dirección de envío"),
             cedula: extractCedula(order.billing_address, order.metadata) || extractCedula(order.shipping_address, order.metadata),
@@ -426,6 +446,8 @@ export class OrderInvoiceStrategy extends BaseDocumentStrategy<OrderInvoiceInput
                     quantity: String(raw.quantity),
                     unit_price: this.formatAmount(raw.unit_price, currency),
                     total: this.formatAmount(Number(raw.subtotal ?? 0), currency),
+                    tax_total: raw.tax_total ? this.formatAmount(Number(raw.tax_total), currency) : "",
+                    discount_total: raw.discount_total ? this.formatAmount(Number(raw.discount_total), currency) : "",
                 }
             }),
             subtotal: this.formatAmount(Number(order.subtotal ?? 0), currency),
@@ -468,12 +490,15 @@ export const ORDER_INVOICE_META: StrategyRegistrationMeta = {
             variables: [
                 { name: "invoice_id" }, { name: "invoice_date" },
                 { name: "order_display_id" }, { name: "order_date" },
+                { name: "currency_code" }, { name: "payment_status" },
+                { name: "shipping_method" },
             ],
         },
         {
             label: "Cliente",
             icon: "👤",
             variables: [
+                { name: "customer_name" }, { name: "customer_email" }, { name: "customer_phone" },
                 { name: "billing_address" }, { name: "shipping_address" }, { name: "cedula" },
             ],
         },
@@ -484,6 +509,7 @@ export const ORDER_INVOICE_META: StrategyRegistrationMeta = {
                 { name: "{{#each items}}", isBlock: true },
                 { name: "this.title" }, { name: "this.variant_title" },
                 { name: "this.quantity" }, { name: "this.unit_price" }, { name: "this.total" },
+                { name: "this.tax_total" }, { name: "this.discount_total" },
                 { name: "{{/each}}", isBlock: true },
             ],
         },
@@ -515,12 +541,18 @@ export const ORDER_INVOICE_META: StrategyRegistrationMeta = {
         invoice_date: new Date().toLocaleDateString("es-ES"),
         order_display_id: "000042",
         order_date: new Date().toLocaleDateString("es-ES"),
-        billing_address: "Juan Pérez\nCalle Ejemplo 456\nQuito, Pichincha\nEC",
-        shipping_address: "Juan Pérez\nCalle Ejemplo 456\nQuito, Pichincha\nEC",
+        currency_code: "USD",
+        payment_status: "authorized",
+        shipping_method: "Envío Express",
+        customer_name: "Juan Pérez",
+        customer_email: "juanperez@ejemplo.com",
+        customer_phone: "+593 99 999 9999",
+        billing_address: "Calle Ejemplo 456\nQuito, Pichincha\nEC",
+        shipping_address: "Calle Ejemplo 456\nQuito, Pichincha\nEC",
         cedula: "1712345678",
         items: [
-            { title: "Producto de ejemplo", variant_title: "Grande", quantity: "2", unit_price: "$25.00", total: "$50.00" },
-            { title: "Otro producto", variant_title: "", quantity: "1", unit_price: "$15.00", total: "$15.00" },
+            { title: "Producto de ejemplo", variant_title: "Grande", quantity: "2", unit_price: "$25.00", total: "$50.00", tax_total: "$6.00", discount_total: "" },
+            { title: "Otro producto", variant_title: "", quantity: "1", unit_price: "$15.00", total: "$15.00", tax_total: "$1.80", discount_total: "$2.00" },
         ],
         subtotal: "$65.00",
         tax_total: "$7.80",
