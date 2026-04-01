@@ -138,7 +138,7 @@ class InvoiceGeneratorService extends MedusaService({
   }
 
   /** Renders raw HTML to PDF via puppeteer-core + system chromium */
-  private async renderHtmlToPdf(html: string): Promise<Buffer> {
+  async renderHtmlToPdf(html: string): Promise<Buffer> {
     const puppeteer = await import("puppeteer-core")
     const puppeteerOpts = this.moduleOptions.puppeteer
     const executablePath =

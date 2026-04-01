@@ -42,6 +42,11 @@ pnpm add @codemind.ec/medusa-plugin-invoice
 
 ```typescript
 import { defineConfig } from "@medusajs/framework/utils"
+// Importar los tipos para autocompletado del editor
+import type { InvoiceModuleOptions } from "@codemind.ec/medusa-plugin-invoice"
+
+// Opcional: Importar la estrategia por defecto de facturas
+import { OrderInvoiceStrategy, ORDER_INVOICE_META } from "@codemind.ec/medusa-plugin-invoice"
 
 export default defineConfig({
   // ...
@@ -54,7 +59,15 @@ export default defineConfig({
   modules: [
     {
       resolve: "@codemind.ec/medusa-plugin-invoice/modules/invoice-generator",
-      options: {},
+      // Castear a InvoiceModuleOptions habilitará el autocompletado en tu IDE
+      options: {
+        strategies: [
+          // Puedes registrar la estrategia de comprobante integrada aquí
+          { id: "order_invoice", strategy: OrderInvoiceStrategy, meta: ORDER_INVOICE_META },
+          // Y/o registrar las tuyas propias:
+          // { id: "quote_proforma", strategy: MiPropiaEstrategia, meta: MI_PROPIA_META },
+        ],
+      } as InvoiceModuleOptions,
     },
   ],
 })
@@ -162,17 +175,15 @@ medusa-plugin-invoice/
 ### Imports disponibles
 
 ```typescript
-// Módulo y servicio
+// Módulo, servicio y opciones de configuración
 import { INVOICE_MODULE, InvoiceGeneratorService } from "@codemind.ec/medusa-plugin-invoice"
+import type { InvoiceModuleOptions } from "@codemind.ec/medusa-plugin-invoice"
 
 // Tipos de factura de pedido
 import type { InvoiceOrder, InvoiceLineItem, InvoiceOrderAddress, OrderInvoiceInput } from "@codemind.ec/medusa-plugin-invoice"
 
-// Tipos de proforma de cotización
-import type { QuoteProformaInput, ProformaConfigField, QuoteCustomerInfo, QuoteScheduleRules } from "@codemind.ec/medusa-plugin-invoice"
-
 // Enums
-import { InvoiceStatus, TemplateType } from "@codemind.ec/medusa-plugin-invoice"
+import { InvoiceStatus } from "@codemind.ec/medusa-plugin-invoice"
 ```
 
 ### Generar un PDF desde un workflow/step
@@ -201,21 +212,46 @@ const pdfBuffer = await invoiceService.generatePdf({
 ### Registrar una nueva estrategia de documento
 
 ```typescript
-import { TemplateFactory, BaseDocumentStrategy } from "@codemind.ec/medusa-plugin-invoice"
+// mi-estrategia.ts
+import { BaseDocumentStrategy, type StrategyRegistrationMeta } from "@codemind.ec/medusa-plugin-invoice"
 
-class MyCustomStrategy extends BaseDocumentStrategy<MyInput> {
+export class MyCustomStrategy extends BaseDocumentStrategy<MyInput> {
   async buildDocumentDefinition(input, config, htmlTemplate?) {
     // buildCompanyContext() inyecta automáticamente las 6 variables de empresa
     const companyCtx = await this.buildCompanyContext(config)
 
     if (htmlTemplate) {
-      return this.renderHtmlTemplate(htmlTemplate, { ...companyCtx, ...myData })
+      return this.renderHtmlTemplate(htmlTemplate, { ...companyCtx, ...input })
     }
     // ... construir doc pdfmake programáticamente
   }
 }
 
-TemplateFactory.register("my_custom_doc", MyCustomStrategy)
+export const MY_CUSTOM_META: StrategyRegistrationMeta = {
+  label: "Mi Documento Custom",
+  // Opcional:
+  // variableCategories: [ ... ]
+  // buildSampleData: () => ({ ... })
+}
+```
+
+Luego regístrala en `medusa-config.ts` dentro de `options.strategies`:
+
+```typescript
+// medusa-config.ts
+import { MyCustomStrategy, MY_CUSTOM_META } from "./src/strategies/mi-estrategia.ts"
+
+// ...
+modules: [
+  {
+    resolve: "@codemind.ec/medusa-plugin-invoice/modules/invoice-generator",
+    options: {
+      strategies: [
+        { id: "my_custom_doc", strategy: MyCustomStrategy, meta: MY_CUSTOM_META }
+      ]
+    } as InvoiceModuleOptions,
+  }
+]
 ```
 
 ### Variables de empresa disponibles en todas las plantillas
@@ -242,6 +278,12 @@ Cuando se genera un PDF, el servicio resuelve la empresa con esta prioridad:
 ---
 
 ## Changelog
+
+### 1.3.1
+
+- **Preview HTML unificado** — el preview del editor ahora reutiliza `renderHtmlToPdf()` del servicio en lugar de duplicar el flujo de Puppeteer.
+- **Typings públicos mejorados** — `InvoiceGeneratorService` expone `renderHtmlToPdf()` y se documenta mejor la configuración extensible vía `InvoiceModuleOptions`.
+- **Documentación actualizada** — ejemplos de registro de estrategias y uso del plugin alineados con la API pública actual.
 
 ### 1.2.0
 

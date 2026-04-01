@@ -20,35 +20,9 @@ export async function POST(
   const compiled = Handlebars.compile(template.html_content)
   const html = compiled(sampleParams)
 
-  // Render HTML → PDF via puppeteer-core + system chromium
-  const puppeteer = await import("puppeteer-core")
-  const executablePath =
-    process.env.PUPPETEER_CHROMIUM_PATH || "/usr/bin/chromium"
+  const pdfBuffer = await service.renderHtmlToPdf(html)
 
-  const browser = await puppeteer.default.launch({
-    executablePath,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu",
-    ],
-    headless: true,
-  })
-
-  try {
-    const page = await browser.newPage()
-    await page.setContent(html, { waitUntil: "networkidle0" })
-    const pdfBuffer = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      margin: { top: "10mm", right: "10mm", bottom: "10mm", left: "10mm" },
-    })
-
-    res.setHeader("Content-Type", "application/pdf")
-    res.setHeader("Content-Disposition", `inline; filename="preview-${template.slug}.pdf"`)
-    res.send(Buffer.from(pdfBuffer))
-  } finally {
-    await browser.close()
-  }
+  res.setHeader("Content-Type", "application/pdf")
+  res.setHeader("Content-Disposition", `inline; filename="preview-${template.slug}.pdf"`)
+  res.send(Buffer.from(pdfBuffer))
 }

@@ -143,6 +143,7 @@ declare module "@codemind.ec/medusa-plugin-invoice" {
 
   export class InvoiceGeneratorService {
     generatePdf(params: GeneratePdfParams & { invoice_id?: string }): Promise<Buffer>
+    renderHtmlToPdf(html: string): Promise<Buffer>
     listStrategies(): Array<{ id: string; meta?: StrategyRegistrationMeta }>
     listInvoiceConfigs(filters?: Record<string, unknown>): Promise<any[]>
     updateInvoiceConfigs(data: Record<string, unknown>): Promise<any>
