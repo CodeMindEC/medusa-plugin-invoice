@@ -161,17 +161,9 @@ class InvoiceGeneratorService extends MedusaService({
 
     try {
       const page = await browser.newPage()
-      const client = await page.createCDPSession()
-
-      await client.send("Page.enable")
-
-      const frameTree = await client.send("Page.getFrameTree") as {
-        frameTree: { frame: { id: string } }
-      }
-
-      await client.send("Page.setDocumentContent", {
-        frameId: frameTree.frameTree.frame.id,
-        html,
+      await page.setContent(html, {
+        waitUntil: ["domcontentloaded", "networkidle0"],
+        timeout: 15000,
       })
 
       await page.waitForNetworkIdle({ idleTime: 500, timeout: 5000 }).catch(() => undefined)

@@ -279,6 +279,10 @@ Cuando se genera un PDF, el servicio resuelve la empresa con esta prioridad:
 
 ## Changelog
 
+### 1.3.7
+
+- **PDF HTML estable en contenedores** — `renderHtmlToPdf()` vuelve a usar `page.setContent()` en lugar de CDP directo para evitar errores `Connection closed` y `Target closed` al generar comprobantes.
+
 ### 1.3.5
 
 - **PDF HTML mas estable** — `renderHtmlToPdf()` espera a que Puppeteer inicialice el frame principal antes de llamar `page.setContent()`, evitando errores `Requesting main frame too early!` al descargar comprobantes.
