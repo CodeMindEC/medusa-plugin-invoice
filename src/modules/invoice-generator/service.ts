@@ -155,13 +155,14 @@ class InvoiceGeneratorService extends MedusaService({
       "--disable-setuid-sandbox",
       "--disable-dev-shm-usage",
       "--disable-gpu",
+      "--disable-background-networking",
+      "--disable-extensions",
+      "--disable-software-rasterizer",
+      "--no-first-run",
+      "--no-zygote",
+      "--single-process",
     ]
 
-    const browser = await puppeteer.default.launch({
-      executablePath,
-      args: puppeteerOpts?.args ?? defaultArgs,
-      headless: true,
-    })
     const tmpDir = await mkdtemp(path.join(tmpdir(), "medusa-invoice-"))
     const htmlPath = path.join(tmpDir, "invoice.html")
     await writeFile(htmlPath, html, "utf8")
@@ -172,8 +173,17 @@ class InvoiceGeneratorService extends MedusaService({
       let lastError: unknown
 
       for (let attempt = 1; attempt <= 3; attempt++) {
-        const page = await browser.newPage()
+        let browser: Awaited<ReturnType<typeof puppeteer.default.launch>> | undefined
+        let page: Awaited<ReturnType<NonNullable<typeof browser>["newPage"]>> | undefined
+
         try {
+          browser = await puppeteer.default.launch({
+            executablePath,
+            args: puppeteerOpts?.args ?? defaultArgs,
+            headless: true,
+            protocolTimeout: 30000,
+          })
+          page = await browser.newPage()
           await page.setRequestInterception(true)
           page.on("request", (request) => {
             const requestUrl = request.url()
@@ -216,15 +226,17 @@ class InvoiceGeneratorService extends MedusaService({
           if (attempt === 3) {
             throw error
           }
+
+          await new Promise((resolve) => setTimeout(resolve, 250 * attempt))
         } finally {
-          await page.close().catch(() => undefined)
+          await page?.close().catch(() => undefined)
+          await browser?.close().catch(() => undefined)
         }
       }
 
       throw lastError
     } finally {
       await rm(tmpDir, { recursive: true, force: true }).catch(() => undefined)
-      await browser.close()
     }
   }
 

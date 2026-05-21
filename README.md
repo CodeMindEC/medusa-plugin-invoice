@@ -279,6 +279,10 @@ Cuando se genera un PDF, el servicio resuelve la empresa con esta prioridad:
 
 ## Changelog
 
+### 1.3.11
+
+- **PDF HTML mas resistente en Docker** — el render relanza Chromium por intento, cubre fallos durante `newPage()`, aumenta el timeout de protocolo y agrega flags de ejecución más estables para contenedores restringidos.
+
 ### 1.3.10
 
 - **PDF HTML mas seguro** — el render con Puppeteer intercepta requests y bloquea archivos locales distintos al HTML temporal, protocolos no permitidos y URLs malformadas durante la generación del PDF.
