@@ -161,6 +161,21 @@ class InvoiceGeneratorService extends MedusaService({
 
     try {
       const page = await browser.newPage()
+      const frameDeadline = Date.now() + 10000
+
+      while (true) {
+        try {
+          page.mainFrame()
+          break
+        } catch (error) {
+          if (Date.now() >= frameDeadline) {
+            throw error
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, 100))
+        }
+      }
+
       await page.setContent(html, {
         waitUntil: ["domcontentloaded", "networkidle0"],
         timeout: 15000,

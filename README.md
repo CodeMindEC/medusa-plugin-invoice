@@ -279,6 +279,10 @@ Cuando se genera un PDF, el servicio resuelve la empresa con esta prioridad:
 
 ## Changelog
 
+### 1.3.8
+
+- **PDF HTML estable al abrir Chromium** — `renderHtmlToPdf()` espera explícitamente a que Puppeteer exponga el frame principal antes de llamar `page.setContent()`, evitando `Requesting main frame too early!`.
+
 ### 1.3.7
 
 - **PDF HTML estable en contenedores** — `renderHtmlToPdf()` vuelve a usar `page.setContent()` en lugar de CDP directo para evitar errores `Connection closed` y `Target closed` al generar comprobantes.
