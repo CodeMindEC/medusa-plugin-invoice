@@ -166,6 +166,7 @@ class InvoiceGeneratorService extends MedusaService({
     const htmlPath = path.join(tmpDir, "invoice.html")
     await writeFile(htmlPath, html, "utf8")
     const htmlUrl = pathToFileURL(htmlPath).toString()
+    const allowedProtocols = new Set(["about:", "blob:", "data:", "http:", "https:"])
 
     try {
       let lastError: unknown
@@ -173,6 +174,28 @@ class InvoiceGeneratorService extends MedusaService({
       for (let attempt = 1; attempt <= 3; attempt++) {
         const page = await browser.newPage()
         try {
+          await page.setRequestInterception(true)
+          page.on("request", (request) => {
+            const requestUrl = request.url()
+
+            if (requestUrl === htmlUrl) {
+              request.continue()
+              return
+            }
+
+            try {
+              const protocol = new URL(requestUrl).protocol
+              if (allowedProtocols.has(protocol)) {
+                request.continue()
+                return
+              }
+            } catch {
+              // Fall through to abort malformed or non-URL requests.
+            }
+
+            request.abort()
+          })
+
           await page.goto(htmlUrl, {
             waitUntil: ["load", "networkidle0"],
             timeout: 15000,

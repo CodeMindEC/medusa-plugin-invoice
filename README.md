@@ -279,6 +279,10 @@ Cuando se genera un PDF, el servicio resuelve la empresa con esta prioridad:
 
 ## Changelog
 
+### 1.3.10
+
+- **PDF HTML mas seguro** — el render con Puppeteer intercepta requests y bloquea archivos locales distintos al HTML temporal, protocolos no permitidos y URLs malformadas durante la generación del PDF.
+
 ### 1.3.9
 
 - **PDF HTML sin `setContent()`** — `renderHtmlToPdf()` ahora escribe el HTML en un archivo temporal y navega a `file://`, con reintentos, para evitar frames detached de Puppeteer durante `page.setContent()`.
