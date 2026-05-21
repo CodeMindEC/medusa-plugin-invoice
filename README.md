@@ -279,6 +279,10 @@ Cuando se genera un PDF, el servicio resuelve la empresa con esta prioridad:
 
 ## Changelog
 
+### 1.3.5
+
+- **PDF HTML mas estable** — `renderHtmlToPdf()` espera a que Puppeteer inicialice el frame principal antes de llamar `page.setContent()`, evitando errores `Requesting main frame too early!` al descargar comprobantes.
+
 ### 1.3.1
 
 - **Preview HTML unificado** — el preview del editor ahora reutiliza `renderHtmlToPdf()` del servicio en lugar de duplicar el flujo de Puppeteer.
