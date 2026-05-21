@@ -139,6 +139,10 @@ class InvoiceGeneratorService extends MedusaService({
 
   /** Renders raw HTML to PDF via puppeteer-core + system chromium */
   async renderHtmlToPdf(html: string): Promise<Buffer> {
+    const { mkdtemp, rm, writeFile } = await import("node:fs/promises")
+    const { tmpdir } = await import("node:os")
+    const path = await import("node:path")
+    const { pathToFileURL } = await import("node:url")
     const puppeteer = await import("puppeteer-core")
     const puppeteerOpts = this.moduleOptions.puppeteer
     const executablePath =
@@ -158,39 +162,45 @@ class InvoiceGeneratorService extends MedusaService({
       args: puppeteerOpts?.args ?? defaultArgs,
       headless: true,
     })
+    const tmpDir = await mkdtemp(path.join(tmpdir(), "medusa-invoice-"))
+    const htmlPath = path.join(tmpDir, "invoice.html")
+    await writeFile(htmlPath, html, "utf8")
+    const htmlUrl = pathToFileURL(htmlPath).toString()
 
     try {
-      const page = await browser.newPage()
-      const frameDeadline = Date.now() + 10000
+      let lastError: unknown
 
-      while (true) {
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const page = await browser.newPage()
         try {
-          page.mainFrame()
-          break
+          await page.goto(htmlUrl, {
+            waitUntil: ["load", "networkidle0"],
+            timeout: 15000,
+          })
+
+          await page.waitForNetworkIdle({ idleTime: 500, timeout: 5000 }).catch(() => undefined)
+
+          const pdfOpts = this.moduleOptions.pdf
+          const pdfBuffer = await page.pdf({
+            format: (pdfOpts?.pageSize as any) ?? "A4",
+            printBackground: true,
+            margin: { top: "10mm", right: "10mm", bottom: "10mm", left: "10mm" },
+          })
+
+          return Buffer.from(pdfBuffer)
         } catch (error) {
-          if (Date.now() >= frameDeadline) {
+          lastError = error
+          if (attempt === 3) {
             throw error
           }
-
-          await new Promise((resolve) => setTimeout(resolve, 100))
+        } finally {
+          await page.close().catch(() => undefined)
         }
       }
 
-      await page.setContent(html, {
-        waitUntil: ["domcontentloaded", "networkidle0"],
-        timeout: 15000,
-      })
-
-      await page.waitForNetworkIdle({ idleTime: 500, timeout: 5000 }).catch(() => undefined)
-
-      const pdfOpts = this.moduleOptions.pdf
-      const pdfBuffer = await page.pdf({
-        format: (pdfOpts?.pageSize as any) ?? "A4",
-        printBackground: true,
-        margin: { top: "10mm", right: "10mm", bottom: "10mm", left: "10mm" },
-      })
-      return Buffer.from(pdfBuffer)
+      throw lastError
     } finally {
+      await rm(tmpDir, { recursive: true, force: true }).catch(() => undefined)
       await browser.close()
     }
   }

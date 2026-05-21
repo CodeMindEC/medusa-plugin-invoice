@@ -279,6 +279,10 @@ Cuando se genera un PDF, el servicio resuelve la empresa con esta prioridad:
 
 ## Changelog
 
+### 1.3.9
+
+- **PDF HTML sin `setContent()`** — `renderHtmlToPdf()` ahora escribe el HTML en un archivo temporal y navega a `file://`, con reintentos, para evitar frames detached de Puppeteer durante `page.setContent()`.
+
 ### 1.3.8
 
 - **PDF HTML estable al abrir Chromium** — `renderHtmlToPdf()` espera explícitamente a que Puppeteer exponga el frame principal antes de llamar `page.setContent()`, evitando `Requesting main frame too early!`.
