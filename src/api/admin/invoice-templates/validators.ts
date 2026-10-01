@@ -6,14 +6,14 @@ export const CreateTemplateSchema = z.object({
   html_content: z.string().min(1),
   type: z.string().min(1).regex(/^[a-z0-9_]+$/, "Type must be lowercase alphanumeric with underscores"),
   is_default: z.boolean().optional().default(false),
-  variables_schema: z.record(z.unknown()).nullable().optional(),
+  variables_schema: z.record(z.string(), z.unknown()).nullable().optional(),
   company_id: z.string().nullable().optional(),
 })
 
 export const UpdateTemplateSchema = z.object({
   name: z.string().min(1).optional(),
   html_content: z.string().min(1).optional(),
-  variables_schema: z.record(z.unknown()).nullable().optional(),
+  variables_schema: z.record(z.string(), z.unknown()).nullable().optional(),
   company_id: z.string().nullable().optional(),
 })
 

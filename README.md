@@ -24,7 +24,7 @@ Plugin de **facturación y cotización PDF** para Medusa v2 — genera facturas 
 | Requisito | Versión  |
 |-----------|----------|
 | Node.js   | >= 20    |
-| Medusa    | >= 2.13  |
+| Medusa    | >= 2.13.3 (compilado y probado con 2.21.2) |
 
 ---
 
@@ -278,6 +278,12 @@ Cuando se genera un PDF, el servicio resuelve la empresa con esta prioridad:
 ---
 
 ## Changelog
+
+### 1.4.0
+
+- **Compilado contra Medusa 2.21.2** — dependencias de desarrollo actualizadas a Medusa 2.21.2 (`@medusajs/ui` 4.2.6, Vite 7). Las `peerDependencies` de Medusa pasan de `2.13.3` exacto a `^2.13.3`, por lo que el plugin sigue funcionando en 2.13.x y ahora también en 2.14–2.21.
+- **Validadores compatibles con Zod v4** — `z.record()` declara la clave explícitamente (Medusa 2.14+ usa Zod v4); sigue siendo compatible con Zod v3 en Medusa 2.13.
+- Dependencias actualizadas dentro de su versión mayor (`axios`, `handlebars`, `pdfmake` 0.2.x, `puppeteer-core` 24.x, CodeMirror).
 
 ### 1.3.11
 
